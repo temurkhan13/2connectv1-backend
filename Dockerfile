@@ -17,8 +17,8 @@ RUN npm run build
 
 EXPOSE 3000
 
-# Run migrations, seed, and start
-CMD npm run migrate && npm run seed && npm run start:prod
+# Run migrations, seed, and start (skip rebuild since already built)
+CMD npx sequelize-cli db:migrate && npx sequelize-cli db:seed:all && npm run start:prod
 
 
 #CMD [ "npm", "run", "start" ]
