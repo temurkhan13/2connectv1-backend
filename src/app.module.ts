@@ -5,6 +5,7 @@ import { ThrottlerModule } from 'src/config/throttle.module';
 import { TerminusModule } from '@nestjs/terminus';
 import { LoggerModule } from 'src/common/logger/logger.module';
 import databaseConfig from 'src/config/database.config';
+import { AppController, HealthController } from 'src/app.controller';
 import { UserModule } from 'src/modules/user/user.module';
 import { AuthModule } from 'src/modules/auth/auth.module';
 import { DatabaseModule } from 'src/config/database.module';
@@ -28,6 +29,7 @@ import { DiscoverModule } from 'src/modules/discover/discover.module';
 import { AnalyticsModule } from 'src/modules/analytics/analytics.module';
 
 @Module({
+  controllers: [AppController, HealthController],
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
