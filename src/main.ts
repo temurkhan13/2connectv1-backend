@@ -13,6 +13,18 @@ import { AppModule } from 'src/app.module';
 import { LoggerService } from 'src/common/logger/logger.service';
 import { GlobalExceptionFilter } from 'src/common/filters/global-exception.filter';
 import { json, urlencoded } from 'express';
+import * as Sentry from '@sentry/node';
+
+// Initialize Sentry early
+if (process.env.SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.NODE_ENV || 'development',
+    tracesSampleRate: 0.1,
+    sendDefaultPii: false,
+  });
+  console.log('Sentry initialized for error monitoring');
+}
 
 async function bootstrap() {
   try {
