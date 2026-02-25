@@ -830,7 +830,7 @@ export class AuthService {
   private generateToken(user: User): string {
     return this.jwtService.sign(
       { sub: user.id, email: user.email, role: user.role?.title },
-      { expiresIn: this.configService.get<string>('JWT_EXPIRES_IN') },
+      { expiresIn: this.configService.get<string>('JWT_EXPIRES_IN') || '96h' },
     );
   }
 
@@ -841,7 +841,7 @@ export class AuthService {
    */
   private generateTempResetToken(userId: string): string {
     const secret = this.configService.get<string>('TEMP_JWT_SECRET');
-    const expiresIn = this.configService.get<string>('TEMP_JWT_EXPIRES_IN');
+    const expiresIn = this.configService.get<string>('TEMP_JWT_EXPIRES_IN') || '15m';
     const issuer = this.configService.get<string>('TEMP_JWT_ISS');
     const audience = this.configService.get<string>('TEMP_JWT_AUD');
 

@@ -25,7 +25,7 @@ import { UserActivityLogsModule } from 'src/modules/user-activity-logs/user-acti
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
         secret: configService.get<string>('JWT_SECRET'),
-        signOptions: { expiresIn: configService.get<string>('JWT_EXPIRES_IN') },
+        signOptions: { expiresIn: configService.get<string>('JWT_EXPIRES_IN') || '96h' },
       }),
       inject: [ConfigService],
     }),
@@ -33,7 +33,7 @@ import { UserActivityLogsModule } from 'src/modules/user-activity-logs/user-acti
       useFactory: (cs: ConfigService) => ({
         secret: cs.get<string>('TEMP_JWT_SECRET'),
         signOptions: {
-          expiresIn: cs.get<string>('TEMP_JWT_EXPIRES_IN'), // 5m
+          expiresIn: cs.get<string>('TEMP_JWT_EXPIRES_IN') || '15m', // 5m default
           issuer: cs.get<string>('TEMP_JWT_ISS'),
           audience: cs.get<string>('TEMP_JWT_AUD'),
         },
