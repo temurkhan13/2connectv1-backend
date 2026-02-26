@@ -71,6 +71,10 @@ services:
         sync: false
       - key: REDIS_PORT
         value: "6379"
+      - key: REDIS_PASSWORD
+        sync: false
+      - key: REDIS_TLS
+        value: "true"
       # Frontend
       - key: FRONT_END_BASE_URL
         value: https://2connectv1-frontend.vercel.app
