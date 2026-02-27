@@ -484,12 +484,51 @@ export class DiscoverService {
 
   /**
    * Anonymize summary to hide identifying details
+   * - Detects and handles raw JSON data
+   * - Removes test account identifiers and usernames
    * - Removes names, companies, specific amounts
    * - Cleans up newlines and excess whitespace
    * - Removes placeholder artifacts like [Name], [Amount]
    */
   private anonymizeSummary(summary: string): string {
     if (!summary) return '';
+
+    // P0 FIX: Detect raw JSON objects and extract useful content or fallback
+    const trimmed = summary.trim();
+    if (trimmed.startsWith('{') && trimmed.includes('"')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        // Try to extract meaningful content from known JSON fields
+        const extractedParts: string[] = [];
+        if (parsed.industry) extractedParts.push(`Professional in ${parsed.industry}`);
+        if (parsed.stage) extractedParts.push(`at ${parsed.stage} stage`);
+        if (parsed.goal) extractedParts.push(`focused on ${parsed.goal}`);
+        if (parsed.offerings) extractedParts.push(`offering ${parsed.offerings.substring(0, 100)}`);
+
+        if (extractedParts.length > 0) {
+          return extractedParts.join(', ') + '.';
+        }
+        // If no useful fields, return generic fallback
+        return 'A professional seeking meaningful connections.';
+      } catch {
+        // Not valid JSON but starts with { - likely partial/corrupted, use fallback
+        if (trimmed.includes('"profile_type"') || trimmed.includes('"industry"')) {
+          return 'A professional seeking meaningful connections.';
+        }
+      }
+    }
+
+    // P0 FIX: Detect test account patterns and return generic text
+    const lowerSummary = summary.toLowerCase();
+    if (
+      lowerSummary.startsWith('test ') ||
+      lowerSummary.includes('test ai summary') ||
+      lowerSummary.includes('ai summary for') ||
+      /\btest[._]?\w+\b/.test(lowerSummary) ||  // test.user, test_user, testuser
+      /\bfor\s+[a-z]+[._][a-z]+\b/.test(lowerSummary)  // "for john.doe" username patterns
+    ) {
+      return 'A professional seeking meaningful connections.';
+    }
 
     let anonymized = summary
       // First clean up any raw newlines and normalize whitespace
@@ -523,6 +562,12 @@ export class DiscoverService {
 
     // Remove potential PII - be conservative to avoid breaking content
     anonymized = anonymized
+      // P0 FIX: Remove username patterns (word.word, word_word) that reveal identity
+      .replace(/\b[a-z]+[._][a-z]+\d*\b/gi, 'a user')
+      // P0 FIX: Remove "for [Name]" patterns that reveal identity
+      .replace(/\bfor\s+[A-Z][a-z]+(\s+[A-Z][a-z]+)?\b/g, '')
+      // P0 FIX: Remove "Test" prefix patterns
+      .replace(/\bTest\s+(AI\s+)?(summary|user|account|profile)\b/gi, 'Professional')
       // Remove company names with suffixes - include preceding article to avoid "a a company"
       .replace(/\b(a |an |the )?[A-Z][a-zA-Z]+\s+(Inc|LLC|Ltd|Corp|Company|Co)\.?\b/gi, 'a company')
       // Remove dollar amounts but keep context
