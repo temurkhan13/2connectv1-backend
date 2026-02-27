@@ -256,6 +256,7 @@ export class WebhooksService {
           const created = await this.matchModel.bulkCreate(rows, {
             returning: true,
             transaction: tx,
+            ignoreDuplicates: true, // Prevent race condition duplicates with unique constraint
           });
 
           // 3d.i) insert activity log (New match found)

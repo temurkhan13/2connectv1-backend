@@ -8,6 +8,7 @@ import {
   UpdatedAt,
   CreatedAt,
   HasMany,
+  Index,
 } from 'sequelize-typescript';
 import { MatchBatch } from 'src/common/entities/match-batch.entity';
 import { User } from 'src/common/entities/user.entity';
@@ -49,6 +50,13 @@ export interface MatchExplanation {
   tableName: 'matches',
   paranoid: false,
   timestamps: true,
+  indexes: [
+    {
+      name: 'matches_user_pair_unique',
+      unique: true,
+      fields: ['user_a_id', 'user_b_id'],
+    },
+  ],
 })
 export class Match extends Model {
   @Column({
