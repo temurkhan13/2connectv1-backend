@@ -238,11 +238,13 @@ export class AIServiceFacade {
   /**
    * Complete Onboarding
    * Completes onboarding and triggers profile/persona creation
+   * NOTE: Long-running operation (persona generation + embeddings), timeout disabled
    */
   async completeOnboarding(request: OnboardingCompleteRequest): Promise<OnboardingCompleteResponse> {
     return this.executeWithResilience(
       () => this.userService.completeOnboarding(request),
-      'completeOnboarding'
+      'completeOnboarding',
+      false // Long running operation - persona generation can take 30-60s
     );
   }
 

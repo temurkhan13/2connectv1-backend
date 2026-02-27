@@ -28,6 +28,6 @@ export function loadAIServiceConfig(): AIServiceConfig {
   return {
     baseURL: baseURL.replace(/\/$/, ''), // Remove trailing slash
     apiKey,
-    timeout: parseInt(process.env.AI_SERVICE_TIMEOUT || '10000', 10),
+    timeout: parseInt(process.env.AI_SERVICE_TIMEOUT || '60000', 10), // 60s default for AI operations (persona generation)
   };
 }
