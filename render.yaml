@@ -56,7 +56,7 @@ services:
         sync: false
       # AI Service
       - key: AI_SERVICE_URL
-        value: https://2connectv1-ai.onrender.com/api/v1
+        value: https://twoconnectv1-ai.onrender.com/api/v1
       - key: AI_SERVICE_WEBHOOK_API_KEY
         generateValue: true
       - key: AI_SERVICE_API_KEY
