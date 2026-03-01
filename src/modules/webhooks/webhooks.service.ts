@@ -808,4 +808,30 @@ export class WebhooksService {
       questions,
     };
   }
+
+  /**
+   * clearAllMatches
+   * Summary:
+   * - Deletes all matches from the database.
+   * - Used when resyncing matches from AI service.
+   */
+  async clearAllMatches() {
+    this.logger.log('++++++ CLEAR ALL MATCHES ++++++++++');
+    this.logger.log({ timestamp: new Date(Date.now()) });
+
+    // Count before delete
+    const countBefore = await this.matchModel.count();
+
+    // Delete all matches
+    const deleted = await this.matchModel.destroy({ where: {} });
+
+    this.logger.log(`Deleted ${deleted} matches (was ${countBefore})`);
+
+    return {
+      success: true,
+      deleted: deleted,
+      count_before: countBefore,
+      message: `Cleared ${deleted} matches from database`,
+    };
+  }
 }

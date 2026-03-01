@@ -197,4 +197,31 @@ export class WebhooksController {
     // 2) return unified shape
     return response;
   }
+
+  /**
+   * DELETE /webhooks/clear-matches
+   * Summary:
+   * - Deletes all matches from the database.
+   * - Used when resyncing matches from AI service.
+   * Steps:
+   * - Check x-api-key → verify against env.
+   * - Call service.clearAllMatches → return result.
+   */
+  @Post('clear-matches')
+  @HttpCode(200)
+  async clearMatchesWebhook(
+    @Request() _req: any,
+    @Headers('x-api-key') apiKey?: string,
+  ) {
+    // 0) simple shared-secret check (public endpoint hardening)
+    if (!apiKey || apiKey !== this.configService.get('AI_SERVICE_WEBHOOK_API_KEY', '')) {
+      throw new UnauthorizedException('Invalid API key');
+    }
+
+    // 1) forward to service
+    const response = await this.webhooksService.clearAllMatches();
+
+    // 2) return result
+    return response;
+  }
 }
