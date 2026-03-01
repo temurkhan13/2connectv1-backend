@@ -552,4 +552,62 @@ export class DashboardController {
     const userId = req.user.id as string;
     return this.dashboardService.trackIceBreakerUsage(body.match_id, userId, body.selected_index);
   }
+
+  // ==========================================
+  // Admin Dashboard Diagnostics
+  // System health, matching diagnostics - no JWT required
+  // ==========================================
+
+  /**
+   * GET /dashboard/admin/system-health
+   * ----------------------------------
+   * Summary:
+   * - Returns comprehensive health status of all AI components.
+   * - Used by admin dashboard to show green/red blips.
+   */
+  @Get('admin/system-health')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Get system health status (Admin)' })
+  @ApiResponse({
+    status: 200,
+    description: 'System health retrieved successfully',
+  })
+  async getSystemHealth() {
+    return this.dashboardService.getSystemHealth();
+  }
+
+  /**
+   * GET /dashboard/admin/matching-diagnostics
+   * -----------------------------------------
+   * Summary:
+   * - Returns all users with their matching parameters.
+   * - Shows embeddings, intent classification, bidirectional scores, etc.
+   */
+  @Get('admin/matching-diagnostics')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Get matching diagnostics for all users (Admin)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Matching diagnostics retrieved successfully',
+  })
+  async getMatchingDiagnostics() {
+    return this.dashboardService.getMatchingDiagnostics();
+  }
+
+  /**
+   * GET /dashboard/admin/user-list
+   * ------------------------------
+   * Summary:
+   * - Returns list of all users with their status.
+   */
+  @Get('admin/user-list')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Get admin user list (Admin)' })
+  @ApiResponse({
+    status: 200,
+    description: 'User list retrieved successfully',
+  })
+  async getAdminUserList() {
+    return this.dashboardService.getAdminUserList();
+  }
 }

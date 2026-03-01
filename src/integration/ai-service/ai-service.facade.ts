@@ -274,4 +274,44 @@ export class AIServiceFacade {
       'getMatchingStats'
     );
   }
+
+  // ==========================================
+  // Admin Dashboard Diagnostics
+  // System health, matching diagnostics
+  // ==========================================
+
+  /**
+   * Get System Health
+   * Returns comprehensive health status of all AI components
+   */
+  async getSystemHealth(): Promise<any> {
+    return this.executeWithResilience(
+      () => this.userService.getSystemHealth(),
+      'getSystemHealth',
+      false // May take longer, no timeout
+    );
+  }
+
+  /**
+   * Get Matching Diagnostics
+   * Returns all users with their matching parameters
+   */
+  async getMatchingDiagnostics(): Promise<any> {
+    return this.executeWithResilience(
+      () => this.userService.getMatchingDiagnostics(),
+      'getMatchingDiagnostics',
+      false // May take longer for large user base
+    );
+  }
+
+  /**
+   * Get Admin User List
+   * Returns list of all users with status
+   */
+  async getAdminUserList(): Promise<any> {
+    return this.executeWithResilience(
+      () => this.userService.getAdminUserList(),
+      'getAdminUserList'
+    );
+  }
 }

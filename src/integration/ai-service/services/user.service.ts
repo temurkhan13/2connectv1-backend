@@ -574,4 +574,84 @@ export class AIUserService {
       );
     }
   }
+
+  // ==========================================
+  // Admin Dashboard Diagnostics
+  // System health, matching diagnostics
+  // ==========================================
+
+  /**
+   * Get System Health
+   * -----------------
+   * Returns comprehensive health status of all AI components
+   *
+   * @returns Promise<any> - System health status
+   */
+  async getSystemHealth(): Promise<any> {
+    try {
+      this.logger.log('Getting system health status');
+
+      const response = await this.httpClient.get<any>(
+        AI_SERVICE_ENDPOINTS.ADMIN.SYSTEM_HEALTH,
+      );
+
+      this.logger.log({ system_health: response.overall_status });
+      return response;
+    } catch (error: any) {
+      this.logger.error(`Failed to get system health: ${error.message}`, error.stack);
+      throw new InternalServerErrorException(
+        `Failed to get system health from AI service: ${error.message}`,
+      );
+    }
+  }
+
+  /**
+   * Get Matching Diagnostics
+   * ------------------------
+   * Returns all users with their matching parameters
+   *
+   * @returns Promise<any> - Matching diagnostics for all users
+   */
+  async getMatchingDiagnostics(): Promise<any> {
+    try {
+      this.logger.log('Getting matching diagnostics');
+
+      const response = await this.httpClient.get<any>(
+        AI_SERVICE_ENDPOINTS.ADMIN.MATCHING_DIAGNOSTICS,
+      );
+
+      this.logger.log({ total_users: response.result?.length || 0 });
+      return response;
+    } catch (error: any) {
+      this.logger.error(`Failed to get matching diagnostics: ${error.message}`, error.stack);
+      throw new InternalServerErrorException(
+        `Failed to get matching diagnostics from AI service: ${error.message}`,
+      );
+    }
+  }
+
+  /**
+   * Get Admin User List
+   * -------------------
+   * Returns list of all users with status
+   *
+   * @returns Promise<any> - User list with status
+   */
+  async getAdminUserList(): Promise<any> {
+    try {
+      this.logger.log('Getting admin user list');
+
+      const response = await this.httpClient.get<any>(
+        AI_SERVICE_ENDPOINTS.ADMIN.LIST_USERS,
+      );
+
+      this.logger.log({ total_users: response.result?.length || 0 });
+      return response;
+    } catch (error: any) {
+      this.logger.error(`Failed to get admin user list: ${error.message}`, error.stack);
+      throw new InternalServerErrorException(
+        `Failed to get admin user list from AI service: ${error.message}`,
+      );
+    }
+  }
 }

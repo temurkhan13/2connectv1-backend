@@ -1959,4 +1959,92 @@ export class DashboardService {
       recorded_at: feedback.created_at,
     };
   }
+
+  // ==========================================
+  // Admin Dashboard Diagnostics
+  // System health, matching diagnostics
+  // ==========================================
+
+  /**
+   * getSystemHealth
+   * ---------------
+   * Returns comprehensive health status of all AI components.
+   *
+   * @returns System health status with green/red indicators
+   */
+  async getSystemHealth() {
+    this.logger.log(`----- GET SYSTEM HEALTH -----`);
+    try {
+      const response = await this.aiService.getSystemHealth();
+      return {
+        code: 200,
+        message: 'System health retrieved',
+        result: response,
+      };
+    } catch (error) {
+      this.logger.error(`Failed to get system health: ${error.message}`);
+      return {
+        code: 500,
+        message: error.message,
+        result: {
+          overall_status: 'error',
+          error: error.message,
+        },
+      };
+    }
+  }
+
+  /**
+   * getMatchingDiagnostics
+   * ----------------------
+   * Returns all users with their matching parameters.
+   *
+   * @returns Matching diagnostics for all users
+   */
+  async getMatchingDiagnostics() {
+    this.logger.log(`----- GET MATCHING DIAGNOSTICS -----`);
+    try {
+      const response = await this.aiService.getMatchingDiagnostics();
+      return {
+        code: 200,
+        message: 'Matching diagnostics retrieved',
+        result: response.result || response,
+        summary: response.summary || null,
+      };
+    } catch (error) {
+      this.logger.error(`Failed to get matching diagnostics: ${error.message}`);
+      return {
+        code: 500,
+        message: error.message,
+        result: [],
+      };
+    }
+  }
+
+  /**
+   * getAdminUserList
+   * ----------------
+   * Returns list of all users with their status.
+   *
+   * @returns User list with status
+   */
+  async getAdminUserList() {
+    this.logger.log(`----- GET ADMIN USER LIST -----`);
+    try {
+      const response = await this.aiService.getAdminUserList();
+      return {
+        code: 200,
+        message: 'User list retrieved',
+        result: response.result || response,
+        summary: response.summary || null,
+      };
+    } catch (error) {
+      this.logger.error(`Failed to get admin user list: ${error.message}`);
+      return {
+        code: 500,
+        message: error.message,
+        result: [],
+      };
+    }
+  }
 }

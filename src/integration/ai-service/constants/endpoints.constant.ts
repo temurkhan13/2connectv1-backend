@@ -40,6 +40,12 @@ export const AI_SERVICE_ENDPOINTS = {
     MATCHES_READY: '/webhooks/matches-ready',
     AI_CHAT_READY: '/webhooks/ai-chat-ready',
   },
+  // Admin Dashboard Diagnostics
+  ADMIN: {
+    SYSTEM_HEALTH: '/admin/system-health',           // GET - comprehensive health status
+    MATCHING_DIAGNOSTICS: '/admin/matching-diagnostics', // GET - all users matching data
+    LIST_USERS: '/admin/list-users',                 // GET - user status list
+  },
 } as const;
 
 export type AIServiceEndpoint = typeof AI_SERVICE_ENDPOINTS;
