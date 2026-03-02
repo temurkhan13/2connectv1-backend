@@ -245,8 +245,15 @@ export class DashboardService {
 
     this.logger.log({ number_of_matches: rows.length });
 
-    // Filter out matches where the other user is a test account
-    let filteredRows = rows.filter((r: any) => !r.other_user_is_test);
+    // Check if current user is a test account
+    const currentUser = await this.userModel.findByPk(userId, { attributes: ['is_test'] });
+    const isCurrentUserTest = currentUser?.is_test === true;
+
+    // Filter out test accounts only if current user is NOT a test account
+    // (Test accounts can see other test accounts for testing purposes)
+    let filteredRows = isCurrentUserTest
+      ? rows
+      : rows.filter((r: any) => !r.other_user_is_test);
 
     // If fewer than `limit` pending matches, fill with recent actioned matches
     if (filteredRows.length < limit) {
@@ -315,8 +322,10 @@ export class DashboardService {
         nest: false,
       });
 
-      // Filter test accounts and append
-      const filteredActioned = recentActioned.filter((r: any) => !r.other_user_is_test);
+      // Filter test accounts and append (skip filter if current user is test account)
+      const filteredActioned = isCurrentUserTest
+        ? recentActioned
+        : recentActioned.filter((r: any) => !r.other_user_is_test);
       filteredRows = [...filteredRows, ...filteredActioned];
     }
 
