@@ -223,6 +223,7 @@ export class AiConversationsController {
   @ApiBearerAuth()
   async getToken(@Request() req) {
     const userId = req.user.id;
+    const userEmail = req.user.email;
 
     // Check if Stream Chat is configured
     if (!this.serverClient) {
@@ -233,6 +234,15 @@ export class AiConversationsController {
     }
 
     try {
+      // Register/update user in Stream Chat before generating token
+      // This ensures the user exists in Stream for channel operations
+      await this.serverClient.upsertUser({
+        id: userId,
+        name: userEmail?.split('@')[0] || userId.substring(0, 8),
+        email: userEmail || undefined,
+      });
+      this.logger.debug(`Stream Chat user upserted: ${userId}`);
+
       // Always generate proper token - Stream doesn't allow dev tokens
       const token = this.serverClient.createToken(userId);
       this.logger.debug(`Stream Chat token generated for user: ${userId}`);
@@ -241,6 +251,40 @@ export class AiConversationsController {
       this.logger.error(`Failed to generate Stream Chat token for user ${userId}:`, error);
       throw new ServiceUnavailableException(
         'Failed to generate chat token. Please try again later.',
+      );
+    }
+  }
+
+  /**
+   * Register a user with Stream Chat
+   * Called when creating channels with users who may not have requested a token yet
+   */
+  @Post('register-user')
+  @HttpCode(200)
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiResponse({ status: 200, description: 'User registered with Stream Chat.' })
+  async registerStreamUser(@Request() req, @Body() body: { target_user_id: string; name?: string; email?: string }) {
+    if (!this.serverClient) {
+      this.logger.warn(`Stream Chat user registration requested but not configured.`);
+      throw new ServiceUnavailableException(
+        'Chat service is not configured. Please contact support.',
+      );
+    }
+
+    try {
+      const { target_user_id, name, email } = body;
+      await this.serverClient.upsertUser({
+        id: target_user_id,
+        name: name || target_user_id.substring(0, 8),
+        email: email || undefined,
+      });
+      this.logger.debug(`Stream Chat user registered: ${target_user_id}`);
+      return { success: true, user_id: target_user_id };
+    } catch (error) {
+      this.logger.error(`Failed to register Stream Chat user:`, error);
+      throw new ServiceUnavailableException(
+        'Failed to register user with chat service.',
       );
     }
   }
