@@ -94,14 +94,15 @@ export class DashboardService {
   /**
    * getOnboardingMatches
    * --------------------
-   * Return pending matches for a user.
+   * Return matches for dashboard display (up to 4 cards).
+   * Priority: pending matches first, then recent actioned matches.
    * Rules (NULL-safe):
    * - Overall status must be 'pending'
    * - If user is A: user_a_decision ∈ {pending, NULL} AND user_b_decision ∈ {pending, approved, NULL}
    * - If user is B: user_b_decision ∈ {pending, NULL} AND user_a_decision ∈ {pending, approved, NULL}
    * Response includes other_user fields from joined users.
    */
-  async getOnboardingMatches(userId: string) {
+  async getOnboardingMatches(userId: string, limit: number = 4) {
     this.logger.log('----- GET ONBOARDING MATCHES -----');
     this.logger.log({ user_id: userId });
     this.logger.log({ timestamp: new Date(Date.now()) });
@@ -245,7 +246,79 @@ export class DashboardService {
     this.logger.log({ number_of_matches: rows.length });
 
     // Filter out matches where the other user is a test account
-    const filteredRows = rows.filter((r: any) => !r.other_user_is_test);
+    let filteredRows = rows.filter((r: any) => !r.other_user_is_test);
+
+    // If fewer than `limit` pending matches, fill with recent actioned matches
+    if (filteredRows.length < limit) {
+      const pendingIds = filteredRows.map((r: any) => r.id);
+      const needed = limit - filteredRows.length;
+
+      const recentActioned = await this.matchModel.findAll({
+        where: {
+          [Op.and]: [
+            { [Op.or]: [{ user_a_id: userId }, { user_b_id: userId }] },
+            { status: { [Op.ne]: MatchStatusEnum.PENDING } }, // non-pending
+            ...(pendingIds.length > 0 ? [{ id: { [Op.notIn]: pendingIds } }] : []),
+          ],
+        },
+        include: [
+          { model: this.userModel, as: 'userA', attributes: [] },
+          { model: this.userModel, as: 'userB', attributes: [] },
+        ],
+        attributes: [
+          'id',
+          ['created_at', 'match_date'],
+          'status',
+          'user_a_id',
+          'user_b_id',
+          'user_a_decision',
+          'user_b_decision',
+          'user_a_feedback',
+          'user_b_feedback',
+          [
+            this.sequelize.literal(
+              `CASE WHEN "Match"."user_a_id" = ${uid} THEN "userB"."id" ELSE "userA"."id" END`,
+            ),
+            'other_user_id',
+          ],
+          [
+            this.sequelize.literal(
+              `CASE WHEN "Match"."user_a_id" = ${uid}
+                THEN COALESCE("userB"."first_name",'') || ' ' || COALESCE("userB"."last_name",'')
+                ELSE COALESCE("userA"."first_name",'') || ' ' || COALESCE("userA"."last_name",'')
+              END`,
+            ),
+            'other_user_name',
+          ],
+          [
+            this.sequelize.literal(
+              `CASE WHEN "Match"."user_a_id" = ${uid} THEN "Match"."user_b_designation" ELSE "Match"."user_a_designation" END`,
+            ),
+            'other_user_designation',
+          ],
+          [
+            this.sequelize.literal(
+              `CASE WHEN "Match"."user_a_id" = ${uid} THEN "userB"."objective" ELSE "userA"."objective" END`,
+            ),
+            'other_user_objective',
+          ],
+          [
+            this.sequelize.literal(
+              `CASE WHEN "Match"."user_a_id" = ${uid} THEN "userB"."is_test" ELSE "userA"."is_test" END`,
+            ),
+            'other_user_is_test',
+          ],
+        ],
+        order: [['updated_at', 'DESC']],
+        limit: needed,
+        raw: true,
+        nest: false,
+      });
+
+      // Filter test accounts and append
+      const filteredActioned = recentActioned.filter((r: any) => !r.other_user_is_test);
+      filteredRows = [...filteredRows, ...filteredActioned];
+    }
 
     const matches = filteredRows.map((r: any) => {
       // Determine if current user is userA or userB
@@ -253,11 +326,18 @@ export class DashboardService {
       const myDecision = isUserA ? r.user_a_decision : r.user_b_decision;
       // const otherDecision = isUserA ? r.user_b_decision : r.user_a_decision;
 
-      // For onboarding matches, status is always 'pending'
-      // Compute status_label based on decisions
+      // Compute status_label based on match status and decisions
       let statusLabel = 'Pending';
 
-      if (myDecision === MatchStatusEnum.APPROVED) {
+      if (r.status === MatchStatusEnum.APPROVED) {
+        statusLabel = 'Approved';
+      } else if (r.status === MatchStatusEnum.DECLINED) {
+        // Determine who passed
+        const iPassedMatch =
+          (isUserA && r.user_a_decision === MatchStatusEnum.DECLINED) ||
+          (!isUserA && r.user_b_decision === MatchStatusEnum.DECLINED);
+        statusLabel = iPassedMatch ? 'Passed by me' : 'Passed by other';
+      } else if (myDecision === MatchStatusEnum.APPROVED) {
         statusLabel = 'Awaiting Other';
       }
 
