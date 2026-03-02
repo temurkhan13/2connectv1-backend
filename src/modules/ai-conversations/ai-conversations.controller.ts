@@ -3,6 +3,7 @@ import { StreamChat } from 'stream-chat';
 import { ApiTags, ApiBearerAuth, ApiBody, ApiResponse } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { AiConversationsService } from 'src/modules/ai-conversations/ai-conversations.service';
+import { ProfileService } from 'src/modules/profile/profile.service';
 import {
   InitiateAIChatDto,
   TriggerUserToUserDto,
@@ -23,7 +24,10 @@ export class AiConversationsController {
   private readonly logger = new Logger(AiConversationsController.name);
   private serverClient: StreamChat | null = null;
 
-  constructor(private readonly aiConversationsService: AiConversationsService) {
+  constructor(
+    private readonly aiConversationsService: AiConversationsService,
+    private readonly profileService: ProfileService,
+  ) {
     if (isStreamConfigured) {
       try {
         this.serverClient = StreamChat.getInstance(
@@ -223,7 +227,6 @@ export class AiConversationsController {
   @ApiBearerAuth()
   async getToken(@Request() req) {
     const userId = req.user.id;
-    const userEmail = req.user.email;
 
     // Check if Stream Chat is configured
     if (!this.serverClient) {
@@ -234,13 +237,23 @@ export class AiConversationsController {
     }
 
     try {
+      // Get user's actual name from database
+      let userName = userId.substring(0, 8); // fallback
+      try {
+        const userProfile = await this.profileService.getProfileData(userId);
+        if (userProfile?.first_name || userProfile?.last_name) {
+          userName = `${userProfile.first_name || ''} ${userProfile.last_name || ''}`.trim();
+        }
+      } catch (profileError) {
+        this.logger.warn(`Could not fetch profile for user ${userId}, using fallback name`);
+      }
+
       // Register/update user in Stream Chat before generating token
-      // This ensures the user exists in Stream for channel operations
       await this.serverClient.upsertUser({
         id: userId,
-        name: userEmail?.split('@')[0] || userId.substring(0, 8),
+        name: userName,
       } as any);
-      this.logger.debug(`Stream Chat user upserted: ${userId}`);
+      this.logger.debug(`Stream Chat user upserted: ${userId} with name: ${userName}`);
 
       // Always generate proper token - Stream doesn't allow dev tokens
       const token = this.serverClient.createToken(userId);

@@ -10,6 +10,7 @@ import { Match } from 'src/common/entities/match.entity';
 import { UseCaseTemplate } from 'src/common/entities/use-case-template.entity';
 import { UserActivityLogsModule } from 'src/modules/user-activity-logs/user-activity-logs.module';
 import { DailyAnalyticsModule } from 'src/modules/daily-analytics/daily-analytics.module';
+import { ProfileModule } from 'src/modules/profile/profile.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { DailyAnalyticsModule } from 'src/modules/daily-analytics/daily-analytic
     UserActivityLogsModule,
     MailModule,
     DailyAnalyticsModule,
+    ProfileModule,
   ],
   controllers: [AiConversationsController],
   providers: [AiConversationsService],
