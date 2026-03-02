@@ -239,8 +239,7 @@ export class AiConversationsController {
       await this.serverClient.upsertUser({
         id: userId,
         name: userEmail?.split('@')[0] || userId.substring(0, 8),
-        email: userEmail || undefined,
-      });
+      } as any);
       this.logger.debug(`Stream Chat user upserted: ${userId}`);
 
       // Always generate proper token - Stream doesn't allow dev tokens
@@ -273,12 +272,11 @@ export class AiConversationsController {
     }
 
     try {
-      const { target_user_id, name, email } = body;
+      const { target_user_id, name } = body;
       await this.serverClient.upsertUser({
         id: target_user_id,
         name: name || target_user_id.substring(0, 8),
-        email: email || undefined,
-      });
+      } as any);
       this.logger.debug(`Stream Chat user registered: ${target_user_id}`);
       return { success: true, user_id: target_user_id };
     } catch (error) {
