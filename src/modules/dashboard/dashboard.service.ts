@@ -1688,6 +1688,12 @@ export class DashboardService {
       force_refresh: forceRefresh,
     });
 
+    // BUG FIX #5: Use stored DB score for consistency, NOT the AI-generated score
+    // This prevents compatibility % from fluctuating on reload
+    const storedScore = match.user_a_persona_compatibility_score
+      ? match.user_a_persona_compatibility_score
+      : 50;
+
     // 4) Update match with new explanation (cache it)
     await this.matchModel.update(
       {
@@ -1708,7 +1714,7 @@ export class DashboardService {
     return {
       match_id: matchId,
       explanation: aiResponse.summary,
-      compatibility_score: Math.round((aiResponse.overall_score || 0.5) * 100),
+      compatibility_score: storedScore, // Use stored score, not AI-generated
       synergy_areas: aiResponse.synergy_areas,
       friction_points: aiResponse.friction_points,
       talking_points: aiResponse.talking_points,
