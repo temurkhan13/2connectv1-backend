@@ -46,7 +46,7 @@ import {
 @Injectable()
 export class AIServiceFacade {
   private readonly logger = new Logger(AIServiceFacade.name);
-  private readonly TIMEOUT_MS = 10000; // 10 second timeout
+  private readonly TIMEOUT_MS = 30000; // 30 second timeout for Claude API calls
 
   constructor(private readonly userService: AIUserService) { }
 
