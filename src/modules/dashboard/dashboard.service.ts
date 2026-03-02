@@ -102,7 +102,7 @@ export class DashboardService {
    * - If user is B: user_b_decision ∈ {pending, NULL} AND user_a_decision ∈ {pending, approved, NULL}
    * Response includes other_user fields from joined users.
    */
-  async getOnboardingMatches(userId: string, limit: number = 4) {
+  async getOnboardingMatches(userId: string, limit: number = 3) {
     this.logger.log('----- GET ONBOARDING MATCHES -----');
     this.logger.log({ user_id: userId });
     this.logger.log({ timestamp: new Date(Date.now()) });
