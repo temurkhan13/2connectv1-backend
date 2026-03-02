@@ -477,12 +477,12 @@ export class DashboardService {
    * ----------
    * Returns:
    *  - total_matches: user is in user_a_id OR user_b_id
-   *  - successful_matches: status = 'approved'
+   *  - approved_matches: status = 'approved'
    *  - conversations: user_to_user_conversation = true
-   *  - perfect_matches: perfect_match = true
+   *  - high_compatibility: match_tier IN ('perfect', 'strong')
    */
   async quickStats(userId: string) {
-    this.logger.log(`----- QUUICK STATS -----`);
+    this.logger.log(`----- QUICK STATS -----`);
     this.logger.log({ user_id: userId });
     const uid = this.sequelize.escape(userId);
 
@@ -494,13 +494,13 @@ export class DashboardService {
         // total
         [this.sequelize.fn('COUNT', this.sequelize.literal('*')), 'total_matches'],
 
-        // approved
+        // approved matches (status = 'approved')
         [
           this.sequelize.fn(
             'SUM',
             this.sequelize.literal(`CASE WHEN "Match"."status" = 'approved' THEN 1 ELSE 0 END`),
           ),
-          'successful_matches',
+          'approved_matches',
         ],
 
         // conversation true
@@ -514,13 +514,15 @@ export class DashboardService {
           'conversations',
         ],
 
-        // perfect_match true
+        // high_compatibility: match_tier IN ('perfect', 'strong')
         [
           this.sequelize.fn(
             'SUM',
-            this.sequelize.literal(`CASE WHEN "Match"."perfect_match" IS TRUE THEN 1 ELSE 0 END`),
+            this.sequelize.literal(
+              `CASE WHEN "Match"."match_tier" IN ('perfect', 'strong') THEN 1 ELSE 0 END`,
+            ),
           ),
-          'perfect_matches',
+          'high_compatibility',
         ],
       ],
       raw: true, // get a flat object
@@ -530,31 +532,26 @@ export class DashboardService {
     // Postgres can return numeric aggregates as strings; cast to numbers.
     return {
       total_matches: Number(row[0]?.total_matches ?? 0),
-      successful_matches: Number(row[0]?.successful_matches ?? 0),
+      approved_matches: Number(row[0]?.approved_matches ?? 0),
       conversations: Number(row[0]?.conversations ?? 0),
-      perfect_matches: Number(row[0]?.perfect_matches ?? 0),
+      high_compatibility: Number(row[0]?.high_compatibility ?? 0),
     };
   }
 
   /**
    * aiMatchAnalytics
    * ----------------
-   * Scope:
-   *  - Per-user metrics based on matches where the user participates.
-   *  - Global metric for ai_chat_completion_rate:
-   *      total number of matches / total number of active users (is_active = true).
-   *
-   * Returns:
-   *  - match_success_rate_after_ai_chat = (user_to_user_conversation TRUE / total_user_matches) * 100
-   *  - avg_persona_compatibility_score = AVG(side-specific score; nulls treated as 0)
-   *  - ai_chat_completion_rate = total_matches_global / total_active_users
+   * 6D Matching Metrics:
+   *  - avg_match_score: Average persona compatibility score (from match scores)
+   *  - response_rate: % of matches where user has decided (not pending)
+   *  - connection_rate: % of approved matches that led to conversations
    */
   async aiMatchAnalytics(userId: string) {
     this.logger.log(`----- AI MATCH ANALYTICS -----`);
     this.logger.log({ user_id: userId });
     const uid = this.sequelize.escape(userId);
 
-    // 1) Per-user aggregates (same as before)
+    // Get per-user aggregates with decision and compatibility scores
     const rows: any[] = await this.matchModel.findAll({
       where: {
         [Op.or]: [{ user_a_id: userId }, { user_b_id: userId }],
@@ -563,44 +560,57 @@ export class DashboardService {
         // total matches for THIS user
         [this.sequelize.fn('COUNT', this.sequelize.literal('*')), 'total'],
 
-        // user_to_user_conversation = TRUE
+        // matches where user has decided (not pending)
         [
           this.sequelize.fn(
             'SUM',
             this.sequelize.literal(
-              `CASE WHEN "Match"."user_to_user_conversation" IS TRUE THEN 1 ELSE 0 END`,
+              `CASE WHEN (
+                ("Match"."user_a_id" = ${uid} AND "Match"."user_a_decision" IS NOT NULL AND "Match"."user_a_decision" != 'pending')
+                OR
+                ("Match"."user_b_id" = ${uid} AND "Match"."user_b_decision" IS NOT NULL AND "Match"."user_b_decision" != 'pending')
+              ) THEN 1 ELSE 0 END`,
             ),
           ),
-          'u2u_true',
+          'decided_count',
         ],
 
-        // ai_to_ai_conversation = TRUE (kept in case you still want it later)
+        // approved matches count
+        [
+          this.sequelize.fn(
+            'SUM',
+            this.sequelize.literal(`CASE WHEN "Match"."status" = 'approved' THEN 1 ELSE 0 END`),
+          ),
+          'approved_count',
+        ],
+
+        // approved matches with user_to_user_conversation = TRUE
         [
           this.sequelize.fn(
             'SUM',
             this.sequelize.literal(
-              `CASE WHEN "Match"."ai_to_ai_conversation" IS TRUE THEN 1 ELSE 0 END`,
+              `CASE WHEN "Match"."status" = 'approved' AND "Match"."user_to_user_conversation" IS TRUE THEN 1 ELSE 0 END`,
             ),
           ),
-          'a2a_true',
+          'connected_count',
         ],
 
-        // Sum of side-specific persona compatibility scores (NULL -> 0)
-        // [
-        //   this.sequelize.fn(
-        //     'SUM',
-        //     this.sequelize.literal(
-        //       `COALESCE(
-        //        CASE
-        //          WHEN "Match"."user_a_id" = ${uid}
-        //            THEN "Match"."user_a_persona_compatibility_score"
-        //          ELSE "Match"."user_b_persona_compatibility_score"
-        //        END
-        //      , 0)`,
-        //     ),
-        //   ),
-        //   'persona_compat_sum',
-        // ],
+        // Average persona compatibility score (user's side)
+        [
+          this.sequelize.fn(
+            'AVG',
+            this.sequelize.literal(
+              `COALESCE(
+                CASE
+                  WHEN "Match"."user_a_id" = ${uid}
+                    THEN "Match"."user_a_persona_compatibility_score"
+                  ELSE "Match"."user_b_persona_compatibility_score"
+                END
+              , 50)`,
+            ),
+          ),
+          'avg_compat_score',
+        ],
       ],
       raw: true,
       nest: false,
@@ -608,25 +618,24 @@ export class DashboardService {
 
     const row = rows?.[0] ?? {};
     const totalUserMatches = Number(row.total ?? 0);
-    const u2u = Number(row.u2u_true ?? 0);
-    const a2a = Number(row.a2a_true ?? 0);
+    const decidedCount = Number(row.decided_count ?? 0);
+    const approvedCount = Number(row.approved_count ?? 0);
+    const connectedCount = Number(row.connected_count ?? 0);
+    const avgCompatScore = Number(row.avg_compat_score ?? 50);
 
-    // 2) Global aggregates (for ai_chat_completion_rate)
-    const totalActiveUsers = await this.userModel.count({
-      where: { is_active: true },
-    });
-
-    // 3) Helpers
+    // Helpers
     const pct = (num: number, den: number) => (den > 0 ? (num / den) * 100 : 0);
     const round2 = (n: number) => Math.round(n * 100) / 100;
 
-    // 4) Compute metrics
+    // Compute 6D metrics
     return {
       total_matches: totalUserMatches,
-      match_success_rate_after_ai_chat: round2(pct(u2u, totalUserMatches)),
-      avg_persona_compatibility_score:
-        totalUserMatches > 0 ? round2(pct(totalUserMatches, totalActiveUsers)) : 0,
-      ai_chat_completion_rate: totalActiveUsers > 0 ? round2(pct(a2a, totalUserMatches)) : 0,
+      // avg_match_score: Average persona compatibility score
+      avg_match_score: round2(avgCompatScore),
+      // response_rate: % of matches decided on (not pending)
+      response_rate: round2(pct(decidedCount, totalUserMatches)),
+      // connection_rate: % of approved matches that led to conversations
+      connection_rate: round2(pct(connectedCount, approvedCount)),
     };
   }
 
