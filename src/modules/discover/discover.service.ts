@@ -500,13 +500,47 @@ export class DiscoverService {
         const parsed = JSON.parse(trimmed);
         // Try to extract meaningful content from known JSON fields
         const extractedParts: string[] = [];
-        if (parsed.industry) extractedParts.push(`Professional in ${parsed.industry}`);
-        if (parsed.stage) extractedParts.push(`at ${parsed.stage} stage`);
-        if (parsed.goal) extractedParts.push(`focused on ${parsed.goal}`);
-        if (parsed.offerings) extractedParts.push(`offering ${parsed.offerings.substring(0, 100)}`);
+
+        // Handle profile_type - use it as the role descriptor
+        const profileType = parsed.profile_type || parsed.archetype || parsed.user_type;
+        if (profileType && profileType !== 'Unknown' && profileType !== 'unknown') {
+          extractedParts.push(`A ${profileType}`);
+        }
+
+        // Handle industry - can be string or array
+        const industry = parsed.industry || parsed.focus;
+        if (industry) {
+          const industryStr = Array.isArray(industry) ? industry.slice(0, 3).join(', ') : industry;
+          if (industryStr && industryStr.length > 2) {
+            extractedParts.push(`in ${industryStr}`);
+          }
+        }
+
+        // Handle stage
+        if (parsed.stage) {
+          extractedParts.push(`at ${parsed.stage} stage`);
+        }
+
+        // Handle goal/objective
+        const goal = parsed.goal || parsed.objective || parsed.looking_for;
+        if (goal && goal.length > 5) {
+          // Truncate long goals
+          const goalText = goal.length > 80 ? goal.substring(0, 80) + '...' : goal;
+          extractedParts.push(`focused on ${goalText}`);
+        }
+
+        // Handle offerings
+        if (parsed.offerings && parsed.offerings.length > 10) {
+          extractedParts.push(`offering ${parsed.offerings.substring(0, 80)}`);
+        }
 
         if (extractedParts.length > 0) {
-          return extractedParts.join(', ') + '.';
+          // Add a professional prefix if none was added from profile_type
+          let result = extractedParts.join(', ');
+          if (!result.startsWith('A ')) {
+            result = 'Professional ' + result;
+          }
+          return result + '.';
         }
         // If no useful fields, return generic fallback
         return 'A professional seeking meaningful connections.';
