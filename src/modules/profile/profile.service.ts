@@ -202,7 +202,15 @@ export class ProfileService {
         });
 
         if (summaryRecord) {
-          summaryRecord.summary = JSON.parse(summaryRecord.summary);
+          // BUG-007 FIX: Handle both JSON (old) and markdown (new) summaries
+          // Try parsing as JSON first (backward compatibility), fallback to raw string (markdown)
+          try {
+            summaryRecord.summary = JSON.parse(summaryRecord.summary);
+          } catch (e) {
+            // Not JSON, assume it's markdown - leave as-is
+            // Frontend expects string for MarkdownRenderer
+            this.logger.log('Summary is not JSON, treating as markdown');
+          }
         }
         return summaryRecord;
       },
