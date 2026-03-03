@@ -18,5 +18,6 @@ import { UserActivityLogsModule } from 'src/modules/user-activity-logs/user-acti
   ],
   controllers: [ProfileController],
   providers: [ProfileService, S3Service],
+  exports: [ProfileService],
 })
 export class ProfileModule {}
