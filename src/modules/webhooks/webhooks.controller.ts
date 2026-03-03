@@ -224,4 +224,36 @@ export class WebhooksController {
     // 2) return result
     return response;
   }
+
+  /**
+   * POST /webhooks/verify-users
+   * Summary:
+   * - Marks users as email verified by email addresses.
+   * - Temporary endpoint for testing/admin purposes.
+   * Steps:
+   * - Check x-api-key → verify against env.
+   * - Call service.verifyUsersByEmail → return result.
+   */
+  @Post('verify-users')
+  @HttpCode(200)
+  async verifyUsersWebhook(
+    @Request() _req: any,
+    @Body() body: { emails: string[] },
+    @Headers('x-api-key') apiKey?: string,
+  ) {
+    // 0) simple shared-secret check
+    if (!apiKey || apiKey !== this.configService.get('AI_SERVICE_WEBHOOK_API_KEY', '')) {
+      throw new UnauthorizedException('Invalid API key');
+    }
+
+    if (!body.emails || !Array.isArray(body.emails)) {
+      throw new BadRequestException('emails array is required');
+    }
+
+    // 1) forward to service
+    const response = await this.webhooksService.verifyUsersByEmail(body.emails);
+
+    // 2) return result
+    return response;
+  }
 }

@@ -834,4 +834,30 @@ export class WebhooksService {
       message: `Cleared ${deleted} matches from database`,
     };
   }
+
+  /**
+   * verifyUsersByEmail
+   * Summary:
+   * - Marks users as email verified by their email addresses.
+   * - Temporary endpoint for testing/admin purposes.
+   */
+  async verifyUsersByEmail(emails: string[]) {
+    this.logger.log('++++++ VERIFY USERS BY EMAIL ++++++++++');
+    this.logger.log({ emails, timestamp: new Date(Date.now()) });
+
+    // Update all users with matching emails
+    const [affectedCount] = await this.userModel.update(
+      { is_email_verified: true },
+      { where: { email: emails } },
+    );
+
+    this.logger.log(`Verified ${affectedCount} users`);
+
+    return {
+      success: true,
+      verified: affectedCount,
+      emails: emails,
+      message: `Verified ${affectedCount} users`,
+    };
+  }
 }
