@@ -683,17 +683,16 @@ export class DashboardService {
         ],
 
         // Average persona compatibility score (user's side)
+        // BUG-018 FIX: Don't default to 50 when NULL - let AVG() return NULL naturally
         [
           this.sequelize.fn(
             'AVG',
             this.sequelize.literal(
-              `COALESCE(
-                CASE
-                  WHEN "Match"."user_a_id" = ${uid}
-                    THEN "Match"."user_a_persona_compatibility_score"
-                  ELSE "Match"."user_b_persona_compatibility_score"
-                END
-              , 50)`,
+              `CASE
+                WHEN "Match"."user_a_id" = ${uid}
+                  THEN "Match"."user_a_persona_compatibility_score"
+                ELSE "Match"."user_b_persona_compatibility_score"
+              END`,
             ),
           ),
           'avg_compat_score',
@@ -708,7 +707,8 @@ export class DashboardService {
     const decidedCount = Number(row.decided_count ?? 0);
     const approvedCount = Number(row.approved_count ?? 0);
     const connectedCount = Number(row.connected_count ?? 0);
-    const avgCompatScore = Number(row.avg_compat_score ?? 50);
+    // BUG-018 FIX: Return 0 when no matches exist (instead of defaulting to 50)
+    const avgCompatScore = totalUserMatches > 0 ? Number(row.avg_compat_score ?? 0) : 0;
 
     // Helpers
     const pct = (num: number, den: number) => (den > 0 ? (num / den) * 100 : 0);
@@ -717,7 +717,7 @@ export class DashboardService {
     // Compute 6D metrics
     return {
       total_matches: totalUserMatches,
-      // avg_match_score: Average persona compatibility score
+      // avg_match_score: Average persona compatibility score (0 when no matches)
       avg_match_score: round2(avgCompatScore),
       // response_rate: % of matches decided on (not pending)
       response_rate: round2(pct(decidedCount, totalUserMatches)),
