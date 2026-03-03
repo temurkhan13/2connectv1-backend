@@ -116,6 +116,7 @@ export class WebhooksService {
             summary: serialized,
             status: 'draft',
             version: nextVersion,
+            webhook: true,  // UX-003 FIX: Set webhook flag to prevent blank AI summary
           },
           { transaction: tx },
         );
