@@ -5,7 +5,7 @@ import { Sequelize } from 'sequelize-typescript';
 import { Match } from 'src/common/entities/match.entity';
 import { UserActivityLog } from 'src/common/entities/user-activity-log.entity';
 import { User } from 'src/common/entities/user.entity';
-import { StatusEnum, SubStatusEnum } from 'src/common/utils/constants/list-matches.constant';
+import { MatchStatusEnum as StatusEnum, SubStatusEnum } from 'src/common/enums';
 import { DailyAnalyticsService } from 'src/modules/daily-analytics/daily-analytics.service';
 import { DashboardService } from 'src/modules/dashboard/dashboard.service';
 import { MailService } from 'src/modules/mail/mail.service';
