@@ -59,9 +59,7 @@ export class AnalyticsController {
     status: 200,
     description: 'Returns funnel metrics',
   })
-  async getFunnelReport(
-    @Query() dto: FunnelQueryDto,
-  ): Promise<{
+  async getFunnelReport(@Query() dto: FunnelQueryDto): Promise<{
     code: number;
     message: string;
     result: FunnelReportDto;
@@ -80,9 +78,7 @@ export class AnalyticsController {
     status: 200,
     description: 'Returns user engagement metrics',
   })
-  async getMyEngagement(
-    @Request() req,
-  ): Promise<{
+  async getMyEngagement(@Request() req): Promise<{
     code: number;
     message: string;
     result: UserEngagementDto | null;

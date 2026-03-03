@@ -209,10 +209,7 @@ export class WebhooksController {
    */
   @Post('clear-matches')
   @HttpCode(200)
-  async clearMatchesWebhook(
-    @Request() _req: any,
-    @Headers('x-api-key') apiKey?: string,
-  ) {
+  async clearMatchesWebhook(@Request() _req: any, @Headers('x-api-key') apiKey?: string) {
     // 0) simple shared-secret check (public endpoint hardening)
     if (!apiKey || apiKey !== this.configService.get('AI_SERVICE_WEBHOOK_API_KEY', '')) {
       throw new UnauthorizedException('Invalid API key');

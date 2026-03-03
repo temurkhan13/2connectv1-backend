@@ -55,7 +55,7 @@ export class IceBreakersResponseDto {
     example: [
       "I noticed we're both in fintech - I'd love to hear about your approach to regulatory compliance.",
       'Your experience with Series A fundraising caught my attention. What was the biggest challenge?',
-      "I see we share an interest in AI applications. Are you exploring any new use cases?",
+      'I see we share an interest in AI applications. Are you exploring any new use cases?',
     ],
     description: 'AI-generated conversation starters',
   })
@@ -88,6 +88,9 @@ export class IceBreakerUsageResponseDto {
   @ApiProperty({ example: 0, description: 'Index of the selected suggestion' })
   selected_index: number;
 
-  @ApiProperty({ example: '2026-02-10T10:30:00.000Z', description: 'When the ice breaker was used' })
+  @ApiProperty({
+    example: '2026-02-10T10:30:00.000Z',
+    description: 'When the ice breaker was used',
+  })
   used_at: string;
 }

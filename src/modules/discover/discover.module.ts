@@ -14,13 +14,7 @@ import { Match } from 'src/common/entities/match.entity';
  */
 @Module({
   imports: [
-    SequelizeModule.forFeature([
-      User,
-      UserSummaries,
-      ConnectionInterest,
-      BrowseHistory,
-      Match,
-    ]),
+    SequelizeModule.forFeature([User, UserSummaries, ConnectionInterest, BrowseHistory, Match]),
   ],
   controllers: [DiscoverController],
   providers: [DiscoverService],

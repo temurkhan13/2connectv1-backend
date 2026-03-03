@@ -1,11 +1,4 @@
-import {
-  Table,
-  Column,
-  DataType,
-  CreatedAt,
-  UpdatedAt,
-  Model,
-} from 'sequelize-typescript';
+import { Table, Column, DataType, CreatedAt, UpdatedAt, Model } from 'sequelize-typescript';
 
 /**
  * Funnel Metric Entity

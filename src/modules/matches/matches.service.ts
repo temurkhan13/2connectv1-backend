@@ -41,10 +41,7 @@ export class MatchesService {
   ): Promise<{ matches: FormattedMatch[]; total: number }> {
     this.logger.log(`Getting matches for user: ${userId}`);
 
-    const response = await this.aiServiceFacade.getUserMatches(
-      userId,
-      similarityThreshold,
-    );
+    const response = await this.aiServiceFacade.getUserMatches(userId, similarityThreshold);
 
     // Combine and deduplicate matches from both requirements and offerings
     const matchMap = new Map<string, FormattedMatch>();
@@ -52,7 +49,10 @@ export class MatchesService {
     // Process requirements matches (users who can fulfill what I need)
     for (const match of response.requirements_matches || []) {
       const formatted = this.formatMatch(match, 'requirements');
-      if (!matchMap.has(match.user_id) || formatted.matchScore > matchMap.get(match.user_id)!.matchScore) {
+      if (
+        !matchMap.has(match.user_id) ||
+        formatted.matchScore > matchMap.get(match.user_id)!.matchScore
+      ) {
         matchMap.set(match.user_id, formatted);
       }
     }
@@ -60,15 +60,16 @@ export class MatchesService {
     // Process offerings matches (users who need what I offer)
     for (const match of response.offerings_matches || []) {
       const formatted = this.formatMatch(match, 'offerings');
-      if (!matchMap.has(match.user_id) || formatted.matchScore > matchMap.get(match.user_id)!.matchScore) {
+      if (
+        !matchMap.has(match.user_id) ||
+        formatted.matchScore > matchMap.get(match.user_id)!.matchScore
+      ) {
         matchMap.set(match.user_id, formatted);
       }
     }
 
     // Sort by match score descending
-    const matches = Array.from(matchMap.values()).sort(
-      (a, b) => b.matchScore - a.matchScore,
-    );
+    const matches = Array.from(matchMap.values()).sort((a, b) => b.matchScore - a.matchScore);
 
     return {
       matches,
@@ -84,14 +85,9 @@ export class MatchesService {
     userId: string,
     similarityThreshold?: number,
   ): Promise<FormattedMatch[]> {
-    const response = await this.aiServiceFacade.getUserMatches(
-      userId,
-      similarityThreshold,
-    );
+    const response = await this.aiServiceFacade.getUserMatches(userId, similarityThreshold);
 
-    return (response.requirements_matches || []).map((m) =>
-      this.formatMatch(m, 'requirements'),
-    );
+    return (response.requirements_matches || []).map(m => this.formatMatch(m, 'requirements'));
   }
 
   /**
@@ -102,14 +98,9 @@ export class MatchesService {
     userId: string,
     similarityThreshold?: number,
   ): Promise<FormattedMatch[]> {
-    const response = await this.aiServiceFacade.getUserMatches(
-      userId,
-      similarityThreshold,
-    );
+    const response = await this.aiServiceFacade.getUserMatches(userId, similarityThreshold);
 
-    return (response.offerings_matches || []).map((m) =>
-      this.formatMatch(m, 'offerings'),
-    );
+    return (response.offerings_matches || []).map(m => this.formatMatch(m, 'offerings'));
   }
 
   /**
@@ -149,9 +140,7 @@ export class MatchesService {
   /**
    * Compute match tier from score
    */
-  private computeMatchTier(
-    score: number,
-  ): 'perfect' | 'strong' | 'worth_exploring' | 'low' {
+  private computeMatchTier(score: number): 'perfect' | 'strong' | 'worth_exploring' | 'low' {
     if (score >= 0.85) return 'perfect';
     if (score >= 0.7) return 'strong';
     if (score >= 0.55) return 'worth_exploring';

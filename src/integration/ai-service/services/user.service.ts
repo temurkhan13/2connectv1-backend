@@ -299,7 +299,9 @@ export class AIUserService {
    */
   async getIceBreakers(request: IceBreakersRequest): Promise<IceBreakersResponse> {
     try {
-      this.logger.log(`Getting ice breakers for match: ${request.match_id}, user: ${request.user_id}`);
+      this.logger.log(
+        `Getting ice breakers for match: ${request.match_id}, user: ${request.user_id}`,
+      );
 
       const response = await this.httpClient.post<IceBreakersResponse>(
         AI_SERVICE_ENDPOINTS.MATCH.ICE_BREAKERS,
@@ -398,7 +400,9 @@ export class AIUserService {
    */
   async onboardingChat(request: OnboardingChatRequest): Promise<OnboardingChatResponse> {
     try {
-      this.logger.log(`Onboarding chat for user: ${request.user_id}, session: ${request.session_id || 'new'}`);
+      this.logger.log(
+        `Onboarding chat for user: ${request.user_id}, session: ${request.session_id || 'new'}`,
+      );
 
       const response = await this.httpClient.post<OnboardingChatResponse>(
         AI_SERVICE_ENDPOINTS.ONBOARDING.CHAT,
@@ -414,9 +418,7 @@ export class AIUserService {
       return response;
     } catch (error: any) {
       this.logger.error(`Failed to process onboarding chat: ${error.message}`, error.stack);
-      throw new InternalServerErrorException(
-        `Failed to process onboarding chat: ${error.message}`,
-      );
+      throw new InternalServerErrorException(`Failed to process onboarding chat: ${error.message}`);
     }
   }
 
@@ -445,9 +447,7 @@ export class AIUserService {
       return response;
     } catch (error: any) {
       this.logger.error(`Failed to get onboarding progress: ${error.message}`, error.stack);
-      throw new InternalServerErrorException(
-        `Failed to get onboarding progress: ${error.message}`,
-      );
+      throw new InternalServerErrorException(`Failed to get onboarding progress: ${error.message}`);
     }
   }
 
@@ -468,13 +468,13 @@ export class AIUserService {
         {},
       );
 
-      this.logger.log(`Onboarding finalized for user: ${response.user_id}, turns: ${response.turn_count}`);
+      this.logger.log(
+        `Onboarding finalized for user: ${response.user_id}, turns: ${response.turn_count}`,
+      );
       return response;
     } catch (error: any) {
       this.logger.error(`Failed to finalize onboarding: ${error.message}`, error.stack);
-      throw new InternalServerErrorException(
-        `Failed to finalize onboarding: ${error.message}`,
-      );
+      throw new InternalServerErrorException(`Failed to finalize onboarding: ${error.message}`);
     }
   }
 
@@ -486,9 +486,13 @@ export class AIUserService {
    * @param request - Complete onboarding request
    * @returns Promise<OnboardingCompleteResponse>
    */
-  async completeOnboarding(request: OnboardingCompleteRequest): Promise<OnboardingCompleteResponse> {
+  async completeOnboarding(
+    request: OnboardingCompleteRequest,
+  ): Promise<OnboardingCompleteResponse> {
     try {
-      this.logger.log(`Completing onboarding for user: ${request.user_id}, session: ${request.session_id}`);
+      this.logger.log(
+        `Completing onboarding for user: ${request.user_id}, session: ${request.session_id}`,
+      );
 
       const response = await this.httpClient.post<OnboardingCompleteResponse>(
         AI_SERVICE_ENDPOINTS.ONBOARDING.COMPLETE,
@@ -504,9 +508,7 @@ export class AIUserService {
       return response;
     } catch (error: any) {
       this.logger.error(`Failed to complete onboarding: ${error.message}`, error.stack);
-      throw new InternalServerErrorException(
-        `Failed to complete onboarding: ${error.message}`,
-      );
+      throw new InternalServerErrorException(`Failed to complete onboarding: ${error.message}`);
     }
   }
 
@@ -591,9 +593,7 @@ export class AIUserService {
     try {
       this.logger.log('Getting system health status');
 
-      const response = await this.httpClient.get<any>(
-        AI_SERVICE_ENDPOINTS.ADMIN.SYSTEM_HEALTH,
-      );
+      const response = await this.httpClient.get<any>(AI_SERVICE_ENDPOINTS.ADMIN.SYSTEM_HEALTH);
 
       this.logger.log({ system_health: response.overall_status });
       return response;
@@ -641,9 +641,7 @@ export class AIUserService {
     try {
       this.logger.log('Getting admin user list');
 
-      const response = await this.httpClient.get<any>(
-        AI_SERVICE_ENDPOINTS.ADMIN.LIST_USERS,
-      );
+      const response = await this.httpClient.get<any>(AI_SERVICE_ENDPOINTS.ADMIN.LIST_USERS);
 
       this.logger.log({ total_users: response.result?.length || 0 });
       return response;
@@ -651,6 +649,33 @@ export class AIUserService {
       this.logger.error(`Failed to get admin user list: ${error.message}`, error.stack);
       throw new InternalServerErrorException(
         `Failed to get admin user list from AI service: ${error.message}`,
+      );
+    }
+  }
+
+  /**
+   * Regenerate Embeddings
+   * ---------------------
+   * Triggers embedding regeneration for a user (admin operation)
+   *
+   * @param userId - User ID to regenerate embeddings for
+   * @returns Promise<any> - Response from AI service
+   */
+  async regenerateEmbeddings(userId: string): Promise<any> {
+    try {
+      this.logger.log(`Regenerating embeddings for user: ${userId}`);
+
+      const response = await this.httpClient.post<any>(
+        AI_SERVICE_ENDPOINTS.ADMIN.REGENERATE_EMBEDDINGS,
+        { user_id: userId },
+      );
+
+      this.logger.log(`Embeddings regeneration triggered for user: ${userId}`);
+      return response;
+    } catch (error: any) {
+      this.logger.error(`Failed to regenerate embeddings: ${error.message}`, error.stack);
+      throw new InternalServerErrorException(
+        `Failed to regenerate embeddings for user ${userId}: ${error.message}`,
       );
     }
   }

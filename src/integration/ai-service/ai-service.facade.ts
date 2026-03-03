@@ -48,19 +48,19 @@ export class AIServiceFacade {
   private readonly logger = new Logger(AIServiceFacade.name);
   private readonly TIMEOUT_MS = 30000; // 30 second timeout for Claude API calls
 
-  constructor(private readonly userService: AIUserService) { }
+  constructor(private readonly userService: AIUserService) {}
 
   private async executeWithResilience<T>(
     operation: () => Promise<T>,
     operationName: string,
-    useTimeout = true
+    useTimeout = true,
   ): Promise<T> {
     try {
       if (useTimeout) {
         return await Promise.race([
           operation(),
           new Promise<T>((_, reject) =>
-            setTimeout(() => reject(new Error('Operation timed out')), this.TIMEOUT_MS)
+            setTimeout(() => reject(new Error('Operation timed out')), this.TIMEOUT_MS),
           ),
         ]);
       }
@@ -75,10 +75,7 @@ export class AIServiceFacade {
    * Register a new user with AI service
    */
   async registerUser(request: UserRegisterRequest): Promise<UserRegisterResponse> {
-    return this.executeWithResilience(
-      () => this.userService.registerUser(request),
-      'registerUser'
-    );
+    return this.executeWithResilience(() => this.userService.registerUser(request), 'registerUser');
   }
 
   /**
@@ -87,7 +84,7 @@ export class AIServiceFacade {
   async approveSummary(request: ApproveSummaryRequest): Promise<ApproveSummaryResponse> {
     return this.executeWithResilience(
       () => this.userService.approveSummary(request),
-      'approveSummary'
+      'approveSummary',
     );
   }
 
@@ -97,7 +94,7 @@ export class AIServiceFacade {
   async initiateAIChat(request: InitiateAIChatRequest): Promise<InitiateAIChatResponse> {
     return this.executeWithResilience(
       () => this.userService.initiateAIChat(request),
-      'initiateAIChat'
+      'initiateAIChat',
     );
   }
 
@@ -123,7 +120,7 @@ export class AIServiceFacade {
     return this.executeWithResilience(
       () => this.userService.triggerMatchCycle(),
       'triggerMatchCycle',
-      false // Long running operation, maybe no timeout? or longer timeout
+      false, // Long running operation, maybe no timeout? or longer timeout
     );
   }
 
@@ -135,7 +132,7 @@ export class AIServiceFacade {
   ): Promise<GenerateQuestionTextResponse> {
     return this.executeWithResilience(
       () => this.userService.modifyQuestionText(request),
-      'modifyQuestionText'
+      'modifyQuestionText',
     );
   }
 
@@ -145,7 +142,7 @@ export class AIServiceFacade {
   async predictAnswer(request: predictAnswerPayload): Promise<PredictAnswerResponseFromAI> {
     return this.executeWithResilience(
       () => this.userService.predictAnswer(request),
-      'predictAnswer'
+      'predictAnswer',
     );
   }
 
@@ -156,7 +153,7 @@ export class AIServiceFacade {
   async getMatchExplanation(request: MatchExplanationRequest): Promise<MatchExplanationResponse> {
     return this.executeWithResilience(
       () => this.userService.getMatchExplanation(request),
-      'getMatchExplanation'
+      'getMatchExplanation',
     );
   }
 
@@ -167,7 +164,7 @@ export class AIServiceFacade {
   async getIceBreakers(request: IceBreakersRequest): Promise<IceBreakersResponse> {
     return this.executeWithResilience(
       () => this.userService.getIceBreakers(request),
-      'getIceBreakers'
+      'getIceBreakers',
     );
   }
 
@@ -198,7 +195,7 @@ export class AIServiceFacade {
   async startOnboardingSession(request: OnboardingStartRequest): Promise<OnboardingStartResponse> {
     return this.executeWithResilience(
       () => this.userService.startOnboardingSession(request),
-      'startOnboardingSession'
+      'startOnboardingSession',
     );
   }
 
@@ -209,7 +206,7 @@ export class AIServiceFacade {
   async onboardingChat(request: OnboardingChatRequest): Promise<OnboardingChatResponse> {
     return this.executeWithResilience(
       () => this.userService.onboardingChat(request),
-      'onboardingChat'
+      'onboardingChat',
     );
   }
 
@@ -220,7 +217,7 @@ export class AIServiceFacade {
   async getOnboardingProgress(sessionId: string): Promise<OnboardingProgressResponse> {
     return this.executeWithResilience(
       () => this.userService.getOnboardingProgress(sessionId),
-      'getOnboardingProgress'
+      'getOnboardingProgress',
     );
   }
 
@@ -231,7 +228,7 @@ export class AIServiceFacade {
   async finalizeOnboarding(sessionId: string): Promise<OnboardingFinalizeResponse> {
     return this.executeWithResilience(
       () => this.userService.finalizeOnboarding(sessionId),
-      'finalizeOnboarding'
+      'finalizeOnboarding',
     );
   }
 
@@ -240,11 +237,13 @@ export class AIServiceFacade {
    * Completes onboarding and triggers profile/persona creation
    * NOTE: Long-running operation (persona generation + embeddings), timeout disabled
    */
-  async completeOnboarding(request: OnboardingCompleteRequest): Promise<OnboardingCompleteResponse> {
+  async completeOnboarding(
+    request: OnboardingCompleteRequest,
+  ): Promise<OnboardingCompleteResponse> {
     return this.executeWithResilience(
       () => this.userService.completeOnboarding(request),
       'completeOnboarding',
-      false // Long running operation - persona generation can take 30-60s
+      false, // Long running operation - persona generation can take 30-60s
     );
   }
 
@@ -260,7 +259,7 @@ export class AIServiceFacade {
   async getUserMatches(userId: string, similarityThreshold?: number): Promise<UserMatchesResponse> {
     return this.executeWithResilience(
       () => this.userService.getUserMatches(userId, similarityThreshold),
-      'getUserMatches'
+      'getUserMatches',
     );
   }
 
@@ -271,7 +270,7 @@ export class AIServiceFacade {
   async getMatchingStats(): Promise<MatchingStatsResponse> {
     return this.executeWithResilience(
       () => this.userService.getMatchingStats(),
-      'getMatchingStats'
+      'getMatchingStats',
     );
   }
 
@@ -288,7 +287,7 @@ export class AIServiceFacade {
     return this.executeWithResilience(
       () => this.userService.getSystemHealth(),
       'getSystemHealth',
-      false // May take longer, no timeout
+      false, // May take longer, no timeout
     );
   }
 
@@ -300,7 +299,7 @@ export class AIServiceFacade {
     return this.executeWithResilience(
       () => this.userService.getMatchingDiagnostics(),
       'getMatchingDiagnostics',
-      false // May take longer for large user base
+      false, // May take longer for large user base
     );
   }
 
@@ -311,7 +310,19 @@ export class AIServiceFacade {
   async getAdminUserList(): Promise<any> {
     return this.executeWithResilience(
       () => this.userService.getAdminUserList(),
-      'getAdminUserList'
+      'getAdminUserList',
+    );
+  }
+
+  /**
+   * Regenerate Embeddings
+   * Triggers embedding regeneration for a user (admin operation)
+   */
+  async regenerateEmbeddings(userId: string): Promise<any> {
+    return this.executeWithResilience(
+      () => this.userService.regenerateEmbeddings(userId),
+      'regenerateEmbeddings',
+      false, // May take longer for embedding generation
     );
   }
 }

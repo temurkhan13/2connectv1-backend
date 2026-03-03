@@ -185,7 +185,9 @@ export class DataSyncService {
       timestamp: new Date().toISOString(),
     };
 
-    this.logger.log(`Queueing embedding update for ${userId}: ${embeddingType} (${dimensions.length} dims)`);
+    this.logger.log(
+      `Queueing embedding update for ${userId}: ${embeddingType} (${dimensions.length} dims)`,
+    );
     return this.syncQueue.add(payload, {
       priority: 1, // High priority - affects matching
     }) as Promise<Job<EmbeddingUpdatePayload>>;

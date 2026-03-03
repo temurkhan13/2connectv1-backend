@@ -5,14 +5,7 @@
  * All matching logic is delegated to the AI service.
  */
 
-import {
-  Controller,
-  Get,
-  Param,
-  Query,
-  UseGuards,
-  Request,
-} from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards, Request } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { MatchesService, FormattedMatch } from 'src/modules/matches/matches.service';

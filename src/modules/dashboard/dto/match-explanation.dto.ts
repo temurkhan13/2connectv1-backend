@@ -16,13 +16,16 @@ export class ScoreDimensionDto {
   @ApiProperty({ example: 0.85, description: 'Score for this dimension (0-1)' })
   score: number;
 
-  @ApiProperty({ example: 0.20, description: 'Weight of this dimension (0-1)' })
+  @ApiProperty({ example: 0.2, description: 'Weight of this dimension (0-1)' })
   weight: number;
 
   @ApiProperty({ example: 0.17, description: 'Score * weight' })
   weighted_score: number;
 
-  @ApiProperty({ example: 'Both seeking Series A funding in fintech space', description: 'Human-readable explanation' })
+  @ApiProperty({
+    example: 'Both seeking Series A funding in fintech space',
+    description: 'Human-readable explanation',
+  })
   explanation: string;
 }
 
@@ -57,7 +60,8 @@ export class MatchExplanationDto {
   match_id: string;
 
   @ApiProperty({
-    example: 'Both are fintech founders seeking Series A, with complementary skills in technology and business development.',
+    example:
+      'Both are fintech founders seeking Series A, with complementary skills in technology and business development.',
     description: 'One-line summary of why they matched',
   })
   summary: string;
@@ -123,7 +127,11 @@ export class GenerateMatchExplanationRequest {
   @IsUUID()
   user_b_id: string;
 
-  @ApiProperty({ example: false, description: 'Force regeneration even if cached', required: false })
+  @ApiProperty({
+    example: false,
+    description: 'Force regeneration even if cached',
+    required: false,
+  })
   @IsOptional()
   @IsBoolean()
   force_refresh?: boolean;

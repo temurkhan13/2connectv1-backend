@@ -37,10 +37,10 @@ export enum MatchStatusEnum {
  * Phase 2.3: Tiered Match Badges
  */
 export enum MatchTierEnum {
-  PERFECT = 'perfect',           // 85%+
-  STRONG = 'strong',             // 70-84%
+  PERFECT = 'perfect', // 85%+
+  STRONG = 'strong', // 70-84%
   WORTH_EXPLORING = 'worth_exploring', // 55-69%
-  LOW = 'low',                   // <55%
+  LOW = 'low', // <55%
 }
 
 export enum DecideMatchEnum {

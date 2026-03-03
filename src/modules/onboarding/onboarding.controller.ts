@@ -234,10 +234,7 @@ export class OnBoardingController {
   @Post('conversational/start')
   @HttpCode(200)
   @UseGuards(AuthGuard('jwt'))
-  async startConversationalOnboarding(
-    @Request() req,
-    @Body() body: { objective?: string },
-  ) {
+  async startConversationalOnboarding(@Request() req, @Body() body: { objective?: string }) {
     const userId = req.user.id;
     const response = await this.onBoardingService.startConversationalOnboarding(
       userId,
@@ -312,10 +309,7 @@ export class OnBoardingController {
   @Post('conversational/complete')
   @HttpCode(200)
   @UseGuards(AuthGuard('jwt'))
-  async completeConversationalOnboarding(
-    @Request() req,
-    @Body() body: { session_id: string },
-  ) {
+  async completeConversationalOnboarding(@Request() req, @Body() body: { session_id: string }) {
     const userId = req.user.id;
     if (!body.session_id) {
       throw new BadRequestException('Session ID is required');

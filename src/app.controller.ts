@@ -3,7 +3,6 @@ import { Controller, Get, VERSION_NEUTRAL, Version } from '@nestjs/common';
 // Main controller with versioned health endpoint
 @Controller()
 export class AppController {
-
   // Health endpoint at /api/v1/health (for Render health checks)
   @Get('health')
   @Version('1')

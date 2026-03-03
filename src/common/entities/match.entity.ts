@@ -228,7 +228,8 @@ export class Match extends Model {
   @Column({
     type: DataType.JSONB,
     allowNull: true,
-    comment: 'Multi-vector score breakdown: objective, industry, timeline, skills, experience, style',
+    comment:
+      'Multi-vector score breakdown: objective, industry, timeline, skills, experience, style',
   })
   declare score_breakdown: ScoreBreakdown | null;
 
@@ -236,7 +237,8 @@ export class Match extends Model {
   @Column({
     type: DataType.STRING(20),
     allowNull: true,
-    comment: 'Match quality tier: perfect (85%+), strong (70-84%), worth_exploring (55-69%), low (<55%)',
+    comment:
+      'Match quality tier: perfect (85%+), strong (70-84%), worth_exploring (55-69%), low (<55%)',
   })
   declare match_tier: MatchTierEnum | null;
 

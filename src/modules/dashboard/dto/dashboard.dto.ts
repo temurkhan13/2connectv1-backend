@@ -21,7 +21,10 @@ import {
 } from 'src/common/enums';
 
 export class decideMatchDto {
-  @ApiProperty({ example: 'approved', description: 'Legacy field - use "decision" for new implementations' })
+  @ApiProperty({
+    example: 'approved',
+    description: 'Legacy field - use "decision" for new implementations',
+  })
   @IsOptional()
   @IsString()
   status?: DecideMatchEnum;
@@ -264,4 +267,14 @@ export class CountAgentReviewMatchesDto {
   @IsNumberString()
   @Equals('1', { message: 'agent must always be 1' })
   agent: string;
+}
+
+export class RegenerateEmbeddingsDto {
+  @ApiProperty({
+    example: '87673b59-f0d0-4849-8d63-632a792dc6ab',
+    description: 'User ID to regenerate embeddings for',
+  })
+  @IsNotEmpty()
+  @IsString()
+  user_id: string;
 }

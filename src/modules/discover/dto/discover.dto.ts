@@ -1,14 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import {
-  IsUUID,
-  IsOptional,
-  IsString,
-  IsInt,
-  Min,
-  Max,
-  IsArray,
-  IsEnum,
-} from 'class-validator';
+import { IsUUID, IsOptional, IsString, IsInt, Min, Max, IsArray, IsEnum } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 
 /**
@@ -21,7 +12,10 @@ const ToArray = () =>
     if (!value) return undefined;
     if (Array.isArray(value)) return value;
     if (typeof value === 'string') {
-      return value.split(',').map((v) => v.trim()).filter((v) => v);
+      return value
+        .split(',')
+        .map(v => v.trim())
+        .filter(v => v);
     }
     return [value];
   });

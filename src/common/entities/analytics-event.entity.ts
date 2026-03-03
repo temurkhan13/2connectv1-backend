@@ -33,12 +33,7 @@ export type EventType =
   | 'connection_made'
   | 'feedback_submitted';
 
-export type EventCategory =
-  | 'onboarding'
-  | 'matching'
-  | 'messaging'
-  | 'discovery'
-  | 'engagement';
+export type EventCategory = 'onboarding' | 'matching' | 'messaging' | 'discovery' | 'engagement';
 
 @Table({
   tableName: 'analytics_events',

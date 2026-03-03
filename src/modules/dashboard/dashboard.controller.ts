@@ -29,6 +29,7 @@ import {
   CountMatchesDto,
   ListAgentReviewMatchesDto,
   CountAgentReviewMatchesDto,
+  RegenerateEmbeddingsDto,
 } from 'src/modules/dashboard/dto/dashboard.dto';
 import { TrackIceBreakerUsageDto } from 'src/modules/dashboard/dto/ice-breakers.dto';
 import {
@@ -609,5 +610,29 @@ export class DashboardController {
   })
   async getAdminUserList() {
     return this.dashboardService.getAdminUserList();
+  }
+
+  /**
+   * POST /dashboard/admin/regenerate-embeddings
+   * -------------------------------------------
+   * Summary:
+   * - Triggers embedding regeneration for a user.
+   * - Used to fix incomplete embeddings or regenerate after data updates.
+   * - Fixes issue where persona generation completed but embeddings are incomplete.
+   */
+  @Post('admin/regenerate-embeddings')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Regenerate embeddings for a user (Admin)' })
+  @ApiBody({ type: RegenerateEmbeddingsDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Embedding regeneration triggered successfully',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Failed to trigger embedding regeneration',
+  })
+  async regenerateEmbeddings(@Body() body: RegenerateEmbeddingsDto) {
+    return this.dashboardService.regenerateEmbeddings(body.user_id);
   }
 }

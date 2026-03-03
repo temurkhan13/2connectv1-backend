@@ -73,7 +73,7 @@ const mockDailyAnalyticsService = {
 };
 
 const mockSequelize = {
-  transaction: jest.fn((callback) => callback({ commit: jest.fn(), rollback: jest.fn() })),
+  transaction: jest.fn(callback => callback({ commit: jest.fn(), rollback: jest.fn() })),
 };
 
 describe('OnBoardingService', () => {
@@ -187,7 +187,7 @@ describe('OnBoardingService', () => {
       const result = (service as any).getNestedQuestionsFromBranch({
         onboarding_question: {
           nested_question: {
-            branches: { 'investor': [{ code: 'q1' }] },
+            branches: { investor: [{ code: 'q1' }] },
           },
         },
       });
@@ -199,7 +199,7 @@ describe('OnBoardingService', () => {
         user_response: 'founder',
         onboarding_question: {
           nested_question: {
-            branches: { 'investor': [{ code: 'q1' }] },
+            branches: { investor: [{ code: 'q1' }] },
           },
         },
       });
@@ -212,7 +212,7 @@ describe('OnBoardingService', () => {
         user_response: 'investor',
         onboarding_question: {
           nested_question: {
-            branches: { 'investor': nestedQuestions },
+            branches: { investor: nestedQuestions },
           },
         },
       });
@@ -373,7 +373,9 @@ describe('OnBoardingService', () => {
   // ============================================
   describe('Error Handling', () => {
     it('should handle database errors gracefully', async () => {
-      mockUserOnboardingAnswerModel.findOne.mockRejectedValue(new Error('Database connection failed'));
+      mockUserOnboardingAnswerModel.findOne.mockRejectedValue(
+        new Error('Database connection failed'),
+      );
 
       await expect(service.getOnboardingAnswersData('user1')).rejects.toThrow();
     });

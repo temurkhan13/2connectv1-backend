@@ -1,4 +1,15 @@
-import { Controller, Post, Body, UseGuards, Request, HttpCode, Get, Query, Logger, ServiceUnavailableException } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  UseGuards,
+  Request,
+  HttpCode,
+  Get,
+  Query,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { StreamChat } from 'stream-chat';
 import { ApiTags, ApiBearerAuth, ApiBody, ApiResponse } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
@@ -16,7 +27,11 @@ import { RESPONSES } from 'src/common/responses';
 // Check if Stream Chat is properly configured
 const STREAM_API_KEY = process.env.STREAM_API_KEY;
 const STREAM_API_SECRET = process.env.STREAM_API_SECRET;
-const isStreamConfigured = !!(STREAM_API_KEY && STREAM_API_SECRET && STREAM_API_KEY !== 'placeholder');
+const isStreamConfigured = !!(
+  STREAM_API_KEY &&
+  STREAM_API_SECRET &&
+  STREAM_API_KEY !== 'placeholder'
+);
 
 @ApiTags('AI-Conversations')
 @Controller('ai-conversations')
@@ -30,10 +45,7 @@ export class AiConversationsController {
   ) {
     if (isStreamConfigured) {
       try {
-        this.serverClient = StreamChat.getInstance(
-          STREAM_API_KEY!,
-          STREAM_API_SECRET!,
-        );
+        this.serverClient = StreamChat.getInstance(STREAM_API_KEY, STREAM_API_SECRET);
         this.logger.log('Stream Chat client initialized successfully');
       } catch (error) {
         this.logger.error('Failed to initialize Stream Chat client:', error);
@@ -276,7 +288,10 @@ export class AiConversationsController {
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @ApiResponse({ status: 200, description: 'User registered with Stream Chat.' })
-  async registerStreamUser(@Request() req, @Body() body: { target_user_id: string; name?: string; email?: string }) {
+  async registerStreamUser(
+    @Request() req,
+    @Body() body: { target_user_id: string; name?: string; email?: string },
+  ) {
     if (!this.serverClient) {
       this.logger.warn(`Stream Chat user registration requested but not configured.`);
       throw new ServiceUnavailableException(
@@ -294,9 +309,7 @@ export class AiConversationsController {
       return { success: true, user_id: target_user_id };
     } catch (error) {
       this.logger.error(`Failed to register Stream Chat user:`, error);
-      throw new ServiceUnavailableException(
-        'Failed to register user with chat service.',
-      );
+      throw new ServiceUnavailableException('Failed to register user with chat service.');
     }
   }
 }

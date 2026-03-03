@@ -192,7 +192,7 @@ export class ProfileService {
     return this.sequelize.transaction(
       { isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED },
       async t => {
-        let summaryRecord: any = await this.userSummaryModel.findOne({
+        const summaryRecord: any = await this.userSummaryModel.findOne({
           where: { user_id: userId },
           attributes: ['id', 'summary', 'status', 'version', 'webhook'],
           order: [['created_at', 'DESC']],

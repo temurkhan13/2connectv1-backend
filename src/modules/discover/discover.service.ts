@@ -4,7 +4,10 @@ import { Sequelize } from 'sequelize-typescript';
 import { Op } from 'sequelize';
 import { User } from 'src/common/entities/user.entity';
 import { UserSummaries } from 'src/common/entities/user-summaries.entity';
-import { ConnectionInterest, ConnectionInterestStatusEnum } from 'src/common/entities/connection-interest.entity';
+import {
+  ConnectionInterest,
+  ConnectionInterestStatusEnum,
+} from 'src/common/entities/connection-interest.entity';
 import { BrowseHistory } from 'src/common/entities/browse-history.entity';
 import { Match } from 'src/common/entities/match.entity';
 import {
@@ -43,7 +46,9 @@ export class DiscoverService {
     const { query, objectives, industries, urgency, page = 1, limit = 20 } = dto;
     const offset = (page - 1) * limit;
 
-    this.logger.log(`Search params: query="${query}", urgency="${urgency}", page=${page}, limit=${limit}`);
+    this.logger.log(
+      `Search params: query="${query}", urgency="${urgency}", page=${page}, limit=${limit}`,
+    );
 
     // Get user's existing matches and interests to exclude
     const existingConnections = await this.getExistingConnections(userId);
@@ -72,18 +77,14 @@ export class DiscoverService {
     if (query && query.trim()) {
       const searchTerm = query.trim();
       // Split on spaces, filter out short words (less than 2 chars)
-      const words = searchTerm
-        .split(/\s+/)
-        .filter((word) => word.length >= 2);
+      const words = searchTerm.split(/\s+/).filter(word => word.length >= 2);
 
-      this.logger.log(
-        `Applying search filter for: "${searchTerm}" (words: ${words.join(', ')})`,
-      );
+      this.logger.log(`Applying search filter for: "${searchTerm}" (words: ${words.join(', ')})`);
 
       if (words.length > 0) {
         // Search for ANY word in the summary (OR logic for better recall)
         summaryConditions.push({
-          [Op.or]: words.map((word) => ({
+          [Op.or]: words.map(word => ({
             summary: { [Op.iLike]: `%${word}%` },
           })),
         });
@@ -148,10 +149,7 @@ export class DiscoverService {
     // Transform to anonymous profiles with compatibility hints
     const profiles: AnonymousProfileDto[] = rows.map((user: any) => {
       const summary = user.userSummaries?.[0];
-      const compatibilityHint = this.calculateCompatibility(
-        currentUserSummary,
-        summary,
-      );
+      const compatibilityHint = this.calculateCompatibility(currentUserSummary, summary);
       return {
         id: user.id,
         display_name: `Member #${user.id.substring(0, 8).toUpperCase()}`,
@@ -176,10 +174,7 @@ export class DiscoverService {
   /**
    * Express interest in a profile
    */
-  async expressInterest(
-    fromUserId: string,
-    dto: ExpressInterestDto,
-  ): Promise<InterestResponseDto> {
+  async expressInterest(fromUserId: string, dto: ExpressInterestDto): Promise<InterestResponseDto> {
     const { to_user_id, message } = dto;
 
     // Can't express interest in yourself
@@ -210,7 +205,7 @@ export class DiscoverService {
       where: { from_user_id: to_user_id, to_user_id: fromUserId },
     });
 
-    return await this.sequelize.transaction(async (transaction) => {
+    return await this.sequelize.transaction(async transaction => {
       // Create our interest
       const interest = await this.connectionInterestModel.create(
         {
@@ -220,9 +215,7 @@ export class DiscoverService {
           status: reverseInterest
             ? ConnectionInterestStatusEnum.MUTUAL
             : ConnectionInterestStatusEnum.PENDING,
-          expires_at: reverseInterest
-            ? null
-            : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+          expires_at: reverseInterest ? null : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
         },
         { transaction },
       );
@@ -413,10 +406,14 @@ export class DiscoverService {
 
     // 4. Complementary objectives bonus (max 15 points)
     const complementaryPairs = [
-      ['fundraising', 'investor'], ['fundraising', 'investment'],
-      ['hiring', 'job'], ['hiring', 'career'],
-      ['mentor', 'mentee'], ['mentorship', 'learning'],
-      ['partnership', 'collaboration'], ['sales', 'buyer'],
+      ['fundraising', 'investor'],
+      ['fundraising', 'investment'],
+      ['hiring', 'job'],
+      ['hiring', 'career'],
+      ['mentor', 'mentee'],
+      ['mentorship', 'learning'],
+      ['partnership', 'collaboration'],
+      ['sales', 'buyer'],
     ];
     const allText = (currentUserSummary.summary + ' ' + otherSummary.summary).toLowerCase();
     for (const [a, b] of complementaryPairs) {
@@ -435,13 +432,56 @@ export class DiscoverService {
    */
   private expandIndustryTerms(industries: string[]): string[] {
     const expansionMap: Record<string, string[]> = {
-      healthcare: ['healthcare', 'health', 'medical', 'hospital', 'healthtech', 'clinical', 'pharma', 'wellness'],
+      healthcare: [
+        'healthcare',
+        'health',
+        'medical',
+        'hospital',
+        'healthtech',
+        'clinical',
+        'pharma',
+        'wellness',
+      ],
       technology: ['technology', 'tech', 'software', 'digital', 'IT', 'computing'],
-      fintech: ['fintech', 'financial technology', 'finance tech', 'banking', 'payments', 'insurtech'],
-      ecommerce: ['ecommerce', 'e-commerce', 'online retail', 'marketplace', 'shopping', 'retail tech'],
-      saas: ['saas', 'software as a service', 'cloud software', 'subscription software', 'b2b software'],
-      ai_ml: ['ai', 'artificial intelligence', 'machine learning', 'ml', 'deep learning', 'data science'],
-      biotech: ['biotech', 'biotechnology', 'life sciences', 'pharmaceutical', 'drug discovery', 'genomics'],
+      fintech: [
+        'fintech',
+        'financial technology',
+        'finance tech',
+        'banking',
+        'payments',
+        'insurtech',
+      ],
+      ecommerce: [
+        'ecommerce',
+        'e-commerce',
+        'online retail',
+        'marketplace',
+        'shopping',
+        'retail tech',
+      ],
+      saas: [
+        'saas',
+        'software as a service',
+        'cloud software',
+        'subscription software',
+        'b2b software',
+      ],
+      ai_ml: [
+        'ai',
+        'artificial intelligence',
+        'machine learning',
+        'ml',
+        'deep learning',
+        'data science',
+      ],
+      biotech: [
+        'biotech',
+        'biotechnology',
+        'life sciences',
+        'pharmaceutical',
+        'drug discovery',
+        'genomics',
+      ],
       real_estate: ['real estate', 'property', 'proptech', 'housing', 'commercial property'],
       education: ['education', 'edtech', 'learning', 'training', 'ed-tech', 'e-learning'],
       media: ['media', 'entertainment', 'content', 'streaming', 'publishing', 'gaming'],
@@ -466,12 +506,63 @@ export class DiscoverService {
    */
   private extractKeywords(text: string): string[] {
     const stopWords = new Set([
-      'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
-      'of', 'with', 'by', 'from', 'is', 'are', 'was', 'were', 'be', 'been',
-      'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would',
-      'could', 'should', 'may', 'might', 'must', 'can', 'this', 'that',
-      'these', 'those', 'i', 'you', 'he', 'she', 'it', 'we', 'they', 'my',
-      'your', 'his', 'her', 'its', 'our', 'their', 'am', 'looking', 'want',
+      'the',
+      'a',
+      'an',
+      'and',
+      'or',
+      'but',
+      'in',
+      'on',
+      'at',
+      'to',
+      'for',
+      'of',
+      'with',
+      'by',
+      'from',
+      'is',
+      'are',
+      'was',
+      'were',
+      'be',
+      'been',
+      'being',
+      'have',
+      'has',
+      'had',
+      'do',
+      'does',
+      'did',
+      'will',
+      'would',
+      'could',
+      'should',
+      'may',
+      'might',
+      'must',
+      'can',
+      'this',
+      'that',
+      'these',
+      'those',
+      'i',
+      'you',
+      'he',
+      'she',
+      'it',
+      'we',
+      'they',
+      'my',
+      'your',
+      'his',
+      'her',
+      'its',
+      'our',
+      'their',
+      'am',
+      'looking',
+      'want',
     ]);
 
     return text
@@ -558,19 +649,19 @@ export class DiscoverService {
       lowerSummary.startsWith('test ') ||
       lowerSummary.includes('test ai summary') ||
       lowerSummary.includes('ai summary for') ||
-      /\btest[._]?\w+\b/.test(lowerSummary) ||  // test.user, test_user, testuser
-      /\bfor\s+[a-z]+[._][a-z]+\b/.test(lowerSummary)  // "for john.doe" username patterns
+      /\btest[._]?\w+\b/.test(lowerSummary) || // test.user, test_user, testuser
+      /\bfor\s+[a-z]+[._][a-z]+\b/.test(lowerSummary) // "for john.doe" username patterns
     ) {
       return 'A professional seeking meaningful connections.';
     }
 
     let anonymized = summary
       // First clean up any raw newlines and normalize whitespace
-      .replace(/\\n/g, ' ')           // Escaped newlines
-      .replace(/\n/g, ' ')            // Actual newlines
-      .replace(/\r/g, ' ')            // Carriage returns
-      .replace(/\t/g, ' ')            // Tabs
-      .replace(/\s+/g, ' ')           // Multiple spaces to single space
+      .replace(/\\n/g, ' ') // Escaped newlines
+      .replace(/\n/g, ' ') // Actual newlines
+      .replace(/\r/g, ' ') // Carriage returns
+      .replace(/\t/g, ' ') // Tabs
+      .replace(/\s+/g, ' ') // Multiple spaces to single space
       .trim();
 
     // Remove internal persona metadata fields that shouldn't be shown to users

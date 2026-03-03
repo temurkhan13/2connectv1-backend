@@ -3,9 +3,16 @@ import { InjectModel } from '@nestjs/sequelize';
 import { Sequelize } from 'sequelize-typescript';
 import { Op } from 'sequelize';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { AnalyticsEvent, EventType, EventCategory } from 'src/common/entities/analytics-event.entity';
+import {
+  AnalyticsEvent,
+  EventType,
+  EventCategory,
+} from 'src/common/entities/analytics-event.entity';
 import { FunnelMetric, FunnelStage } from 'src/common/entities/funnel-metric.entity';
-import { UserEngagementScore, ActivityLevelEnum } from 'src/common/entities/user-engagement-score.entity';
+import {
+  UserEngagementScore,
+  ActivityLevelEnum,
+} from 'src/common/entities/user-engagement-score.entity';
 import { User } from 'src/common/entities/user.entity';
 import { Match } from 'src/common/entities/match.entity';
 import { AiConversation } from 'src/common/entities/ai-conversation.entity';
@@ -71,10 +78,20 @@ export class AnalyticsService {
         [Sequelize.fn('SUM', Sequelize.col('count')), 'count'],
         [Sequelize.fn('SUM', Sequelize.col('unique_users')), 'unique_users'],
         [Sequelize.fn('AVG', Sequelize.col('conversion_rate')), 'conversion_rate'],
-        [Sequelize.fn('AVG', Sequelize.col('avg_time_from_previous_hours')), 'avg_time_from_previous_hours'],
+        [
+          Sequelize.fn('AVG', Sequelize.col('avg_time_from_previous_hours')),
+          'avg_time_from_previous_hours',
+        ],
       ],
       group: ['stage'],
-      order: [[Sequelize.literal("CASE stage WHEN 'signup' THEN 1 WHEN 'onboarding_started' THEN 2 WHEN 'onboarding_completed' THEN 3 WHEN 'first_match' THEN 4 WHEN 'first_approve' THEN 5 WHEN 'first_ai_chat' THEN 6 WHEN 'first_message' THEN 7 WHEN 'first_connection' THEN 8 END"), 'ASC']],
+      order: [
+        [
+          Sequelize.literal(
+            "CASE stage WHEN 'signup' THEN 1 WHEN 'onboarding_started' THEN 2 WHEN 'onboarding_completed' THEN 3 WHEN 'first_match' THEN 4 WHEN 'first_approve' THEN 5 WHEN 'first_ai_chat' THEN 6 WHEN 'first_message' THEN 7 WHEN 'first_connection' THEN 8 END",
+          ),
+          'ASC',
+        ],
+      ],
       raw: true,
     });
 
@@ -159,17 +176,20 @@ export class AnalyticsService {
           first_connection: 'connection_made',
         };
 
-        const [countResult] = await this.sequelize.query(`
+        const [countResult] = (await this.sequelize.query(
+          `
           SELECT
             COUNT(*) as count,
             COUNT(DISTINCT user_id) as unique_users
           FROM analytics_events
           WHERE event_type = :eventType
           AND DATE(created_at) = :date
-        `, {
-          replacements: { eventType: eventTypeMap[stage], date: yesterday },
-          type: 'SELECT',
-        }) as any[];
+        `,
+          {
+            replacements: { eventType: eventTypeMap[stage], date: yesterday },
+            type: 'SELECT',
+          },
+        )) as any[];
 
         // Calculate conversion rate from previous stage
         let conversionRate: number | null = null;

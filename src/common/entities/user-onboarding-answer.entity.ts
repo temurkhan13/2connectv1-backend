@@ -64,25 +64,25 @@ export class UserOnboardingAnswer extends Model {
     type: DataType.STRING,
     allowNull: true,
   })
-  declare user_response: String;
+  declare user_response: string;
 
   @Column({
     type: DataType.STRING,
     allowNull: true,
   })
-  declare user_input_response: String;
+  declare user_input_response: string;
 
   @Column({
     type: DataType.STRING,
     allowNull: true,
   })
-  declare prompt: String;
+  declare prompt: string;
 
   @Column({
     type: DataType.STRING,
     allowNull: true,
   })
-  declare code: String;
+  declare code: string;
 
   @Column({
     type: DataType.INTEGER,

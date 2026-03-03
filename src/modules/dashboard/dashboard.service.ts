@@ -251,9 +251,7 @@ export class DashboardService {
 
     // Filter out test accounts only if current user is NOT a test account
     // (Test accounts can see other test accounts for testing purposes)
-    let filteredRows = isCurrentUserTest
-      ? rows
-      : rows.filter((r: any) => !r.other_user_is_test);
+    let filteredRows = isCurrentUserTest ? rows : rows.filter((r: any) => !r.other_user_is_test);
 
     // If fewer than `limit` pending matches, fill with recent actioned matches
     if (filteredRows.length < limit) {
@@ -450,7 +448,7 @@ export class DashboardService {
 
       // 3) Update my decision, with a conditional WHERE to keep it safe
       const [affected] = await this.matchModel.update(
-        { [myField]: decision as DecideMatchEnum },
+        { [myField]: decision },
         {
           where: {
             id: matchId,
@@ -480,10 +478,10 @@ export class DashboardService {
       });
       if (!updated) throw new BadRequestException('Match not found after update');
 
-      const a = updated.user_a_decision as MatchStatusEnum;
-      const b = updated.user_b_decision as MatchStatusEnum;
+      const a = updated.user_a_decision;
+      const b = updated.user_b_decision;
 
-      let finalStatus: MatchStatusEnum = updated.status as MatchStatusEnum;
+      let finalStatus: MatchStatusEnum = updated.status;
 
       if (a === MatchStatusEnum.DECLINED || b === MatchStatusEnum.DECLINED) {
         finalStatus = MatchStatusEnum.DECLINED;
@@ -791,7 +789,7 @@ export class DashboardService {
       });
 
       // `updated` is guaranteed to exist since we just updated by id
-      return updated!.get({ plain: true });
+      return updated.get({ plain: true });
     });
   }
 
@@ -2010,8 +2008,16 @@ export class DashboardService {
         [Op.or]: [{ user_a_id: userId }, { user_b_id: userId }],
       },
       include: [
-        { model: this.userModel, as: 'userA', attributes: ['id', 'objective', 'onboarding_status'] },
-        { model: this.userModel, as: 'userB', attributes: ['id', 'objective', 'onboarding_status'] },
+        {
+          model: this.userModel,
+          as: 'userA',
+          attributes: ['id', 'objective', 'onboarding_status'],
+        },
+        {
+          model: this.userModel,
+          as: 'userB',
+          attributes: ['id', 'objective', 'onboarding_status'],
+        },
       ],
     });
 
@@ -2148,6 +2154,34 @@ export class DashboardService {
         code: 500,
         message: error.message,
         result: [],
+      };
+    }
+  }
+
+  /**
+   * regenerateEmbeddings
+   * --------------------
+   * Triggers embedding regeneration for a user (admin operation).
+   * Used to fix incomplete embeddings or regenerate after data updates.
+   *
+   * @param userId - User ID to regenerate embeddings for
+   * @returns Response from AI service
+   */
+  async regenerateEmbeddings(userId: string) {
+    this.logger.log(`----- REGENERATE EMBEDDINGS FOR USER: ${userId} -----`);
+    try {
+      const response = await this.aiService.regenerateEmbeddings(userId);
+      return {
+        code: 200,
+        message: 'Embedding regeneration triggered successfully',
+        result: response.result || response,
+      };
+    } catch (error) {
+      this.logger.error(`Failed to regenerate embeddings for user ${userId}: ${error.message}`);
+      return {
+        code: 500,
+        message: error.message,
+        result: null,
       };
     }
   }

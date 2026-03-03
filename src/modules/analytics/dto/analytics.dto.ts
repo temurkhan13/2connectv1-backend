@@ -1,12 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import {
-  IsString,
-  IsOptional,
-  IsObject,
-  IsNumber,
-  IsDateString,
-  IsEnum,
-} from 'class-validator';
+import { IsString, IsOptional, IsObject, IsNumber, IsDateString, IsEnum } from 'class-validator';
 
 /**
  * Phase 4.3: Success Metrics Pipeline DTOs

@@ -151,7 +151,7 @@ export interface MatchFeedbackWithReasonsRequest {
  */
 export interface OnboardingStartRequest {
   user_id: string;
-  objective?: string;  // User's primary objective if known
+  objective?: string; // User's primary objective if known
 }
 
 /**
@@ -161,7 +161,7 @@ export interface OnboardingStartRequest {
 export interface OnboardingChatRequest {
   user_id: string;
   message: string;
-  session_id?: string;  // Creates new session if not provided
+  session_id?: string; // Creates new session if not provided
 }
 
 /**

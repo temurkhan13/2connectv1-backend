@@ -44,7 +44,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         // Prefer "message" when present (string or string[])
         message = (res as any).message ?? JSON.stringify(res);
       } else {
-        message = res as string;
+        message = res;
       }
     }
     // Generic Error branch

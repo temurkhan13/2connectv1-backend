@@ -70,10 +70,9 @@ export class DiscoverController {
     result: InterestResponseDto;
   }> {
     const result = await this.discoverService.expressInterest(req.user.id, dto);
-    const message =
-      result.match_created
-        ? 'Mutual interest! A match has been created.'
-        : 'Interest expressed successfully';
+    const message = result.match_created
+      ? 'Mutual interest! A match has been created.'
+      : 'Interest expressed successfully';
     return {
       code: 200,
       message,

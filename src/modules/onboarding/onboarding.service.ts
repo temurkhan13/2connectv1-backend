@@ -94,10 +94,7 @@ export class OnBoardingService {
    * @param formattedUserResponses - Previous user responses for context
    * @returns The question with AI-enhanced text and suggestion chips
    */
-  private async enhanceQuestionWithAI(
-    question: any,
-    formattedUserResponses: any[],
-  ): Promise<any> {
+  private async enhanceQuestionWithAI(question: any, formattedUserResponses: any[]): Promise<any> {
     if (!question) {
       this.logger.warn('enhanceQuestionWithAI called with null question');
       return null;
@@ -178,10 +175,7 @@ export class OnBoardingService {
    * @param t - Transaction object
    * @returns The next question or null if no more questions
    */
-  private async findNextQuestionByOrder(
-    lastDisplayOrder: number,
-    t: Transaction,
-  ): Promise<any> {
+  private async findNextQuestionByOrder(lastDisplayOrder: number, t: Transaction): Promise<any> {
     return this.onboardingQuestionModel.findOne({
       where: {
         is_active: true,
@@ -201,10 +195,7 @@ export class OnBoardingService {
    * @param t - Transaction object
    * @returns The last submitted response or null
    */
-  private async getLastSubmittedResponse(
-    userId: string,
-    t: Transaction,
-  ): Promise<any> {
+  private async getLastSubmittedResponse(userId: string, t: Transaction): Promise<any> {
     return this.userOnboardingAnswerModel.findOne({
       where: { user_id: userId },
       order: [['display_order', 'DESC']],
@@ -345,12 +336,7 @@ export class OnBoardingService {
     const allNestedAnswered = answeredNestedResponses.length >= nestedQuestions.length;
 
     if (allNestedAnswered) {
-      return this.handlePostNestedFlow(
-        userId,
-        primaryGoalResponse,
-        formattedUserResponses,
-        t,
-      );
+      return this.handlePostNestedFlow(userId, primaryGoalResponse, formattedUserResponses, t);
     }
 
     // Get the next unanswered nested question
@@ -551,7 +537,7 @@ export class OnBoardingService {
     this.logger.log(`----- SUBMIT ONBOARDING QUESTION -----`);
     this.logger.log({ user_id: userId });
     let userResponse: any;
-    let userInputResponse = dto.user_response;
+    const userInputResponse = dto.user_response;
 
     // All writes in a single transaction
     return this.sequelize.transaction(async (t: Transaction) => {
@@ -593,7 +579,7 @@ export class OnBoardingService {
       if (onboardingQuestion.code === 'age') {
         userUpdatePayload.date_of_birth = dobFromAge(dto.user_response);
         if (!userUpdatePayload.date_of_birth) {
-          let nextQuestion = await this.getNextOnboardingQuestion(userId);
+          const nextQuestion = await this.getNextOnboardingQuestion(userId);
           nextQuestion.ai_text =
             'It looks like that the age you just provided does not sound right. We would appreciate if you could provide us a valid age. It will help us get the best results for you.';
           return {
@@ -607,7 +593,7 @@ export class OnBoardingService {
 
       // Bio
       if (onboardingQuestion.code === 'resume_linkedin_bio') {
-        const isObject: Boolean = await this.isTheValueAnObject(userResponse ?? dto.user_response);
+        const isObject: boolean = await this.isTheValueAnObject(userResponse ?? dto.user_response);
         if (isObject) {
           const bio = JSON.parse(userResponse ?? dto.user_response)?.bio ?? null;
           const linkedIn = JSON.parse(userResponse ?? dto.user_response)?.linkedIn ?? null;
@@ -632,7 +618,7 @@ export class OnBoardingService {
                 ? aiResponse.predicted_answer.toLowerCase()
                 : aiResponse.predicted_answer;
           } else {
-            let nextQuestion = await this.getNextOnboardingQuestion(userId);
+            const nextQuestion = await this.getNextOnboardingQuestion(userId);
             nextQuestion.ai_text = aiResponse.fallback_text;
             return {
               user_response: userResponse ?? dto.user_response,
@@ -731,7 +717,7 @@ export class OnBoardingService {
     this.logger.log(`----- UPDATE ONBOARDING QUESTION -----`);
     this.logger.log({ user_id: userId });
     let userResponse: any;
-    let userInputResponse = dto.user_response;
+    const userInputResponse = dto.user_response;
 
     return await this.sequelize.transaction(async (t: Transaction) => {
       // Must exist to update
@@ -759,10 +745,10 @@ export class OnBoardingService {
       if (onboardingQuestion.code === 'age') {
         userUpdatePayload.date_of_birth = dobFromAge(dto.user_response);
         if (!userUpdatePayload.date_of_birth) {
-          let nextQuestion = await this.getNextOnboardingQuestion(userId);
+          const nextQuestion = await this.getNextOnboardingQuestion(userId);
           if (!nextQuestion) {
             // recall this question again
-            let nextPossibleQuestion: any = await this.onboardingQuestionModel.findOne({
+            const nextPossibleQuestion: any = await this.onboardingQuestionModel.findOne({
               where: { is_active: true, id: onboardingQuestion.id },
               order: [['display_order', 'ASC']],
               raw: true,
@@ -804,7 +790,7 @@ export class OnBoardingService {
       // Bio
 
       if (onboardingQuestion.code === 'resume_linkedin_bio') {
-        const isObject: Boolean = await this.isTheValueAnObject(userResponse ?? dto.user_response);
+        const isObject: boolean = await this.isTheValueAnObject(userResponse ?? dto.user_response);
         if (isObject) {
           const bio = JSON.parse(userResponse ?? dto.user_response)?.bio ?? null;
           const linkedIn = JSON.parse(userResponse ?? dto.user_response)?.linkedIn ?? null;
@@ -829,7 +815,7 @@ export class OnBoardingService {
                 ? aiResponse.predicted_answer.toLowerCase()
                 : aiResponse.predicted_answer;
           } else {
-            let nextPossibleQuestion: any = await this.onboardingQuestionModel.findOne({
+            const nextPossibleQuestion: any = await this.onboardingQuestionModel.findOne({
               where: { is_active: true, id: onboardingQuestion.id },
               order: [['display_order', 'ASC']],
               raw: true,
@@ -1014,7 +1000,7 @@ export class OnBoardingService {
     } else {
       const userResponse = (primaryGoalAnswer as any)?.user_response;
 
-      const branches = (primaryGoalQuestion as any)?.nested_question?.branches;
+      const branches = primaryGoalQuestion?.nested_question?.branches;
 
       // Always count the primary_goal question itself as part of total
       totalQuestions += 1;
@@ -1195,7 +1181,7 @@ export class OnBoardingService {
 
     // build payload from enriched answers
     for (const q of answerData as any[]) {
-      const isObject: Boolean = await this.isTheValueAnObject(q.user_response);
+      const isObject: boolean = await this.isTheValueAnObject(q.user_response);
       if (isObject) resumeLink = JSON.parse(q.user_response)?.resume;
       questions.push({ prompt: q.onboarding_question.prompt, answer: q.user_response }); // fixed "amnswer" -> "answer"
     }
@@ -1379,7 +1365,7 @@ export class OnBoardingService {
     });
 
     await this.sequelize.transaction(async (t: Transaction) => {
-      for (let q of onboarding_questions) {
+      for (const q of onboarding_questions) {
         await this.onboardingQuestionModel.update(
           { display_order: q.display_order },
           { where: { code: q.code }, transaction: t },
@@ -1651,7 +1637,10 @@ export class OnBoardingService {
     try {
       return await this.aiService.finalizeOnboarding(sessionId);
     } catch (error: any) {
-      this.logger.error(`Failed to finalize conversational onboarding: ${error.message}`, error.stack);
+      this.logger.error(
+        `Failed to finalize conversational onboarding: ${error.message}`,
+        error.stack,
+      );
       throw new InternalServerErrorException(
         `Failed to finalize conversational onboarding: ${error.message}`,
       );
@@ -1709,7 +1698,10 @@ export class OnBoardingService {
 
       return response;
     } catch (error: any) {
-      this.logger.error(`Failed to complete conversational onboarding: ${error.message}`, error.stack);
+      this.logger.error(
+        `Failed to complete conversational onboarding: ${error.message}`,
+        error.stack,
+      );
       throw new InternalServerErrorException(
         `Failed to complete conversational onboarding: ${error.message}`,
       );
