@@ -116,7 +116,7 @@ export class WebhooksService {
             summary: serialized,
             status: 'draft',
             version: nextVersion,
-            webhook: true,  // UX-003 FIX: Set webhook flag to prevent blank AI summary
+            webhook: true, // UX-003 FIX: Set webhook flag to prevent blank AI summary
           },
           { transaction: tx },
         );
@@ -796,7 +796,7 @@ export class WebhooksService {
     // build payload from enriched answers
     // Use q.prompt (stored directly on answer row) as fallback when onboarding_question is null
     for (const q of answerData as any[]) {
-      const isObject: Boolean = await this.isTheValueAnObject(q.user_response);
+      const isObject: boolean = await this.isTheValueAnObject(q.user_response);
       if (isObject) resumeLink = JSON.parse(q.user_response)?.resume;
       // Fix: Use prompt from answer row directly, fallback to onboarding_question.prompt
       const prompt = q.prompt || q.onboarding_question?.prompt || 'Unknown';
