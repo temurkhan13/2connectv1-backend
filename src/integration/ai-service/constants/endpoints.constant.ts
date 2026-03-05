@@ -47,6 +47,7 @@ export const AI_SERVICE_ENDPOINTS = {
     LIST_USERS: '/admin/list-users', // GET - user status list
     REGENERATE_EMBEDDINGS: '/admin/regenerate-embeddings', // POST - regenerate embeddings for user
     WIRING_AUDIT: '/admin/wiring-audit', // GET - truth-based health check for latest user
+    RECOVER_USER: '/admin/recover-user', // POST - recover broken user (BUG-027)
   },
 } as const;
 

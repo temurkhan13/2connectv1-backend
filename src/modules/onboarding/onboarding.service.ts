@@ -1575,21 +1575,12 @@ export class OnBoardingService {
         session_id: sessionId,
       });
 
-      // If onboarding is complete, update user status
-      if (response.is_complete) {
-        await this.sequelize.transaction(async (t: Transaction) => {
-          await this.userModel.update(
-            { onboarding_status: OnboardingStatusEnum.COMPLETED },
-            { where: { id: userId }, transaction: t },
-          );
-
-          await this.userActivityLogsService.insertActivityLog(
-            UserActivityEventsEnum.ONBOARDING_COMPLETED,
-            userId,
-            t,
-          );
-        });
-      }
+      // BUG-027 FIX: REMOVED premature status update
+      // Previously this set onboarding_status=COMPLETED when is_complete=true,
+      // but profile creation happens in completeConversationalOnboarding().
+      // This caused users to have status=completed but no profile/persona/matches.
+      // Status is now ONLY updated in completeConversationalOnboarding() AFTER
+      // profile_created=true is confirmed from the AI service.
 
       return response;
     } catch (error: any) {
