@@ -1668,7 +1668,19 @@ export class OnBoardingService {
         session_id: sessionId,
       });
 
-      // Update user status
+      // BUG FIX: Only mark as COMPLETED if profile was actually created
+      // Previously this always set COMPLETED regardless of profile_created status,
+      // leaving users in a broken state (completed but no profile/persona/matches)
+      if (!response.profile_created) {
+        this.logger.error(
+          `AI service returned profile_created=false for user ${userId}`,
+        );
+        throw new InternalServerErrorException(
+          'Failed to create user profile. Please try again.',
+        );
+      }
+
+      // Update user status - only runs if profile_created is true
       await this.sequelize.transaction(async (t: Transaction) => {
         await this.userModel.update(
           {
@@ -1684,16 +1696,14 @@ export class OnBoardingService {
           t,
         );
 
-        // Log persona creation
-        if (response.profile_created) {
-          await this.userActivityLogsService.insertActivityLog(
-            UserActivityEventsEnum.AI_SUMMARY_APPROVED,
-            userId,
-            t,
-          );
+        // Log persona creation (always true at this point due to guard above)
+        await this.userActivityLogsService.insertActivityLog(
+          UserActivityEventsEnum.AI_SUMMARY_APPROVED,
+          userId,
+          t,
+        );
 
-          await this.dailyAnalyticsService.bumpToday('personas_created', { by: 1, transaction: t });
-        }
+        await this.dailyAnalyticsService.bumpToday('personas_created', { by: 1, transaction: t });
       });
 
       return response;
