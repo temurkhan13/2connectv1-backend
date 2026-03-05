@@ -2159,6 +2159,37 @@ export class DashboardService {
   }
 
   /**
+   * getWiringAudit
+   * --------------
+   * Returns truth-based health check for the latest completed user.
+   * Used by admin dashboard to verify end-to-end pipeline is working.
+   *
+   * @returns Wiring audit results with pipeline status
+   */
+  async getWiringAudit() {
+    this.logger.log(`----- GET WIRING AUDIT -----`);
+    try {
+      const response = await this.aiService.getWiringAudit();
+      return {
+        code: 200,
+        message: 'Wiring audit retrieved',
+        result: response,
+      };
+    } catch (error) {
+      this.logger.error(`Failed to get wiring audit: ${error.message}`);
+      return {
+        code: 500,
+        message: error.message,
+        result: {
+          overall_status: 'ERROR',
+          color: 'RED',
+          issues: [error.message],
+        },
+      };
+    }
+  }
+
+  /**
    * regenerateEmbeddings
    * --------------------
    * Triggers embedding regeneration for a user (admin operation).

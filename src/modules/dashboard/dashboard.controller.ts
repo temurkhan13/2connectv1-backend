@@ -613,6 +613,24 @@ export class DashboardController {
   }
 
   /**
+   * GET /dashboard/admin/wiring-audit
+   * ---------------------------------
+   * Summary:
+   * - Returns truth-based health check for latest completed user.
+   * - Verifies end-to-end pipeline: embeddings, persona, matches.
+   */
+  @Get('admin/wiring-audit')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Get wiring audit - truth-based health check (Admin)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Wiring audit retrieved successfully',
+  })
+  async getWiringAudit() {
+    return this.dashboardService.getWiringAudit();
+  }
+
+  /**
    * POST /dashboard/admin/regenerate-embeddings
    * -------------------------------------------
    * Summary:

@@ -315,6 +315,18 @@ export class AIServiceFacade {
   }
 
   /**
+   * Get Wiring Audit
+   * Truth-based health check for the latest completed user
+   */
+  async getWiringAudit(): Promise<any> {
+    return this.executeWithResilience(
+      () => this.userService.getWiringAudit(),
+      'getWiringAudit',
+      false, // May take longer for DB queries
+    );
+  }
+
+  /**
    * Regenerate Embeddings
    * Triggers embedding regeneration for a user (admin operation)
    */

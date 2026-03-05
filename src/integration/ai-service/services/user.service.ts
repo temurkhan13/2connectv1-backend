@@ -654,6 +654,29 @@ export class AIUserService {
   }
 
   /**
+   * Get Wiring Audit
+   * ----------------
+   * Returns truth-based health check for the latest completed user
+   *
+   * @returns Promise<any> - Wiring audit results
+   */
+  async getWiringAudit(): Promise<any> {
+    try {
+      this.logger.log('Getting wiring audit');
+
+      const response = await this.httpClient.get<any>(AI_SERVICE_ENDPOINTS.ADMIN.WIRING_AUDIT);
+
+      this.logger.log({ wiring_audit_status: response.overall_status });
+      return response;
+    } catch (error: any) {
+      this.logger.error(`Failed to get wiring audit: ${error.message}`, error.stack);
+      throw new InternalServerErrorException(
+        `Failed to get wiring audit from AI service: ${error.message}`,
+      );
+    }
+  }
+
+  /**
    * Regenerate Embeddings
    * ---------------------
    * Triggers embedding regeneration for a user (admin operation)

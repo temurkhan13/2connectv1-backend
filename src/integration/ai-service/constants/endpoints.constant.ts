@@ -46,6 +46,7 @@ export const AI_SERVICE_ENDPOINTS = {
     MATCHING_DIAGNOSTICS: '/admin/matching-diagnostics', // GET - all users matching data
     LIST_USERS: '/admin/list-users', // GET - user status list
     REGENERATE_EMBEDDINGS: '/admin/regenerate-embeddings', // POST - regenerate embeddings for user
+    WIRING_AUDIT: '/admin/wiring-audit', // GET - truth-based health check for latest user
   },
 } as const;
 
