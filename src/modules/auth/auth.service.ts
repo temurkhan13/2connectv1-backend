@@ -22,7 +22,9 @@ import { User } from 'src/common/entities/user.entity';
 import { Role } from 'src/common/entities/role.entity';
 import { DailyAnalyticsService } from 'src/modules/daily-analytics/daily-analytics.service';
 import { UserActivityLogsService } from 'src/modules/user-activity-logs/user-activity-logs.service';
-import { SignupDto, SigninDto, GoogleSigninDto } from 'src/modules/auth/dto/auth.dto';
+import { SignupDto, SigninDto, GoogleSigninDto, AppleSigninDto } from 'src/modules/auth/dto/auth.dto';
+import * as jwt from 'jsonwebtoken';
+import jwksRsa from 'jwks-rsa';
 import { VerificationCode } from 'src/common/entities/verification-code.entity';
 import { MailService } from 'src/modules/mail/mail.service';
 
@@ -664,6 +666,161 @@ export class AuthService {
         user,
         access_token,
         // googleData,
+      };
+    });
+  }
+
+  /**
+   * Summary: Sign in (or up) with Apple. Verifies identity token, creates user if needed, returns JWT.
+   * Inputs: AppleSigninDto { identityToken, authorizationCode?, firstName?, lastName? }.
+   * Returns: { user, access_token }.
+   */
+  async appleSignIn(appleSignInDto: AppleSigninDto) {
+    this.logger.log(`----- APPLE SIGNIN -----`);
+    const { identityToken, firstName, lastName } = appleSignInDto;
+
+    if (!identityToken) {
+      throw new BadRequestException('Apple identity token is required');
+    }
+
+    // ----- 1) Verify Apple identity token (JWT) ---------------------------------
+    let email: string | undefined;
+    let appleUserId: string | undefined;
+    let emailVerified = false;
+
+    try {
+      // Decode header to get key ID
+      const decodedHeader = jwt.decode(identityToken, { complete: true });
+      if (!decodedHeader || typeof decodedHeader === 'string') {
+        throw new BadRequestException('Invalid Apple identity token format');
+      }
+
+      const kid = decodedHeader.header.kid;
+
+      // Fetch Apple's public keys
+      const client = jwksRsa({
+        jwksUri: 'https://appleid.apple.com/auth/keys',
+        cache: true,
+        cacheMaxAge: 86400000, // 24 hours
+      });
+
+      const key = await client.getSigningKey(kid);
+      const publicKey = key.getPublicKey();
+
+      // Verify the token
+      const payload = jwt.verify(identityToken, publicKey, {
+        algorithms: ['RS256'],
+        issuer: 'https://appleid.apple.com',
+        audience: this.configService.get<string>('APPLE_CLIENT_ID') || this.configService.get<string>('APPLE_BUNDLE_ID'),
+      }) as jwt.JwtPayload;
+
+      this.logger.log({ apple_payload: { sub: payload.sub, email: payload.email } });
+
+      email = payload.email;
+      appleUserId = payload.sub;
+      emailVerified = payload.email_verified === 'true' || payload.email_verified === true;
+
+      if (!email) {
+        throw new BadRequestException('Email not provided by Apple. Please allow email access.');
+      }
+    } catch (error) {
+      this.logger.error('Apple token verification failed', error);
+      if (error instanceof BadRequestException) throw error;
+      throw new BadRequestException('Invalid or expired Apple identity token');
+    }
+
+    // ----- 2) DB work inside a single transaction ------------------------------
+    return this.sequelize.transaction(async (t: Transaction) => {
+      // 2a) Try to find user by email
+      let user: any = await this.userModel.findOne({
+        where: { email },
+        attributes: [
+          'id',
+          'email',
+          'provider',
+          'is_active',
+          'first_name',
+          'last_name',
+          'is_email_verified',
+          'avatar',
+          'role_id',
+        ],
+        include: [{ model: Role, attributes: ['id', 'title'] }],
+        raw: true,
+        nest: true,
+        transaction: t,
+      });
+      this.logger.log({ existing_user: user ? { id: user.id, email: user.email } : null });
+
+      // 2b) Create new Apple user if not found
+      if (!user) {
+        const userRole = await this.roleModel.findOne({
+          where: { title: 'user' },
+          raw: true,
+          transaction: t,
+        });
+        if (!userRole) {
+          throw new InternalServerErrorException(
+            'Failed to acquire necessary information at the moment.',
+          );
+        }
+
+        const userObject = {
+          first_name: firstName || '',
+          last_name: lastName || '',
+          email,
+          password: null,
+          provider: ProviderEnum.APPLE,
+          avatar: null,
+          is_email_verified: emailVerified,
+          role_id: userRole.id,
+        };
+        this.logger.log({ user_object: { ...userObject, email: '***' } });
+
+        const insertedRecord = await this.userModel.create(userObject, { transaction: t });
+        user = insertedRecord.get({ plain: true });
+        user.role = { id: userRole.id, title: 'user' };
+
+        // Analytics: signup
+        await this.dailyAnalyticsService.bumpToday('signups', { by: 1, transaction: t });
+      } else if (user.provider !== ProviderEnum.APPLE) {
+        // 2c) Existing account with different provider
+        throw new BadRequestException(
+          `An account with this email already exists. Please sign in via ${user.provider === ProviderEnum.GOOGLE ? 'Google' : 'email and password'}!`,
+        );
+      }
+
+      // 2d) Status check
+      if (!user.is_active) throw new AccountNotActiveException();
+
+      // 2e) Update last login
+      await this.userModel.update(
+        { last_login_at: new Date() },
+        { where: { id: user.id }, transaction: t },
+      );
+
+      // 2f) Analytics: login
+      await this.dailyAnalyticsService.bumpToday('logins', { by: 1, transaction: t });
+
+      // 2g) Issue token
+      const access_token = this.generateToken(user);
+
+      // 3) activity log
+      await this.userActivityLogsService.insertActivityLog(
+        UserActivityEventsEnum.SIGN_IN,
+        user.id,
+        t,
+      );
+
+      return {
+        user: {
+          id: user.id,
+          first_name: user.first_name,
+          last_name: user.last_name,
+          email: user.email,
+          role: user.role,
+        },
+        access_token,
       };
     });
   }

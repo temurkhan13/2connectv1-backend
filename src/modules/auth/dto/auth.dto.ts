@@ -47,6 +47,25 @@ export class GoogleSigninDto {
   token: string;
 }
 
+export class AppleSigninDto {
+  @ApiProperty({ description: 'Apple identity token (JWT from Sign in with Apple)' })
+  @IsNotEmpty()
+  @IsString()
+  identityToken: string;
+
+  @ApiProperty({ description: 'Apple authorization code', required: false })
+  @IsString()
+  authorizationCode?: string;
+
+  @ApiProperty({ description: 'User first name (only provided on first sign in)', required: false })
+  @IsString()
+  firstName?: string;
+
+  @ApiProperty({ description: 'User last name (only provided on first sign in)', required: false })
+  @IsString()
+  lastName?: string;
+}
+
 export class ForgotPasswordDto {
   @ApiProperty({ example: 'john.doe@example.com', description: 'User email address' })
   @IsEmail()

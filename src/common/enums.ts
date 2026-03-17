@@ -13,6 +13,7 @@ export enum OnboardingStatusEnum {
 export enum ProviderEnum {
   PASSWORD = 'password',
   GOOGLE = 'google',
+  APPLE = 'apple',
 }
 
 export enum SummaryStatusEnum {

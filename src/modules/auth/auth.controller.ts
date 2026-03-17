@@ -8,6 +8,7 @@ import {
   SigninDto,
   SignupDto,
   GoogleSigninDto,
+  AppleSigninDto,
   ForgotPasswordDto,
   ResetPasswordDto,
   UpdatePasswordDto,
@@ -188,6 +189,43 @@ export class AuthController {
       },
       access_token,
       // googleData,
+    };
+  }
+
+  /**
+   * Apple sign-in/up.
+   * Sets an HTTP-only cookie and returns a minimal user payload.
+   */
+  @Post('apple-signin')
+  @HttpCode(200)
+  @ApiBody({ type: AppleSigninDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Apple sign-in successful',
+  })
+  async appleSignin(
+    @Body() appleSigninDto: AppleSigninDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const response = await this.authService.appleSignIn(appleSigninDto);
+    const { user, access_token } = response;
+
+    res.cookie('access_token', access_token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 96 * 60 * 60 * 1000,
+    });
+
+    return {
+      user: {
+        id: user.id,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        email: user.email,
+        role: user.role,
+      },
+      access_token,
     };
   }
 
