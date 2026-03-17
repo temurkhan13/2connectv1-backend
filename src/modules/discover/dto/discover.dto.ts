@@ -156,3 +156,27 @@ export class MyInterestsDto {
   @Max(50)
   limit?: number = 20;
 }
+
+/**
+ * Filter options for the Discover screen
+ * Returns available filter values for mobile app
+ */
+export class DiscoverFiltersDto {
+  @ApiProperty({
+    type: [String],
+    example: ['Fundraising', 'Partnerships', 'Co-founder', 'Advisory', 'Mentorship', 'Networking'],
+  })
+  objectives: string[];
+
+  @ApiProperty({
+    type: [String],
+    example: ['Technology', 'Fintech', 'Healthcare', 'Enterprise', 'Consumer', 'Climate'],
+  })
+  industries: string[];
+
+  @ApiProperty({
+    type: [String],
+    example: ['urgent', 'time_sensitive', 'ongoing'],
+  })
+  urgency: string[];
+}

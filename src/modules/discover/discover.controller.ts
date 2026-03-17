@@ -19,6 +19,7 @@ import {
   MyInterestsDto,
   AnonymousProfileDto,
   InterestResponseDto,
+  DiscoverFiltersDto,
 } from './dto/discover.dto';
 
 /**
@@ -31,6 +32,62 @@ import {
 @Controller('discover')
 export class DiscoverController {
   constructor(private readonly discoverService: DiscoverService) {}
+
+  /**
+   * Get available filter options for the Discover screen
+   * Returns static options for objectives, industries, and urgency
+   * Mobile app uses this to populate filter dropdowns
+   */
+  @Get('filters')
+  @ApiOperation({ summary: 'Get available filter options' })
+  @ApiResponse({
+    status: 200,
+    description: 'Filter options retrieved successfully',
+    type: DiscoverFiltersDto,
+  })
+  async getFilters(): Promise<{
+    code: number;
+    message: string;
+    result: DiscoverFiltersDto;
+  }> {
+    // Static filter options - can be made dynamic in the future
+    // by querying active user summaries
+    const filters: DiscoverFiltersDto = {
+      objectives: [
+        'Fundraising',
+        'Partnerships',
+        'Co-founder',
+        'Advisory',
+        'Mentorship',
+        'Networking',
+        'Sales',
+        'Hiring',
+        'Investment',
+      ],
+      industries: [
+        'Technology',
+        'Fintech',
+        'Healthcare',
+        'Enterprise',
+        'Consumer',
+        'Climate',
+        'AI/ML',
+        'SaaS',
+        'E-commerce',
+        'Biotech',
+        'Real Estate',
+        'Education',
+        'Media',
+      ],
+      urgency: ['urgent', 'time_sensitive', 'ongoing'],
+    };
+
+    return {
+      code: 200,
+      message: 'Filter options retrieved successfully',
+      result: filters,
+    };
+  }
 
   @Get('search')
   @ApiOperation({ summary: 'Search anonymous profiles' })

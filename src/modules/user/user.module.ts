@@ -7,9 +7,21 @@ import { Match } from 'src/common/entities/match.entity';
 import { Role } from 'src/common/entities/role.entity';
 import { UserFcmToken } from 'src/common/entities/user-fcm-token.entity';
 import { UserSummaries } from 'src/common/entities/user-summaries.entity';
+import { PushToken } from 'src/common/entities/push-token.entity';
+import { NotificationSettings } from 'src/common/entities/notification-settings.entity';
 
 @Module({
-  imports: [SequelizeModule.forFeature([User, Match, Role, UserFcmToken, UserSummaries])],
+  imports: [
+    SequelizeModule.forFeature([
+      User,
+      Match,
+      Role,
+      UserFcmToken,
+      UserSummaries,
+      PushToken,
+      NotificationSettings,
+    ]),
+  ],
   controllers: [UserController],
   providers: [UserService],
   exports: [UserService],
