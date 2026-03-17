@@ -16,6 +16,8 @@ import { UserDocument } from 'src/common/entities/user-document.entity';
 import { UserActivityLogsModule } from 'src/modules/user-activity-logs/user-activity-logs.module';
 import { DailyAnalyticsService } from 'src/modules/daily-analytics/daily-analytics.service';
 import { DailyAnalytics } from 'src/common/entities/daily-analytics.entity';
+import { PushToken } from 'src/common/entities/push-token.entity';
+import { NotificationSettings } from 'src/common/entities/notification-settings.entity';
 
 @Module({
   imports: [
@@ -30,6 +32,8 @@ import { DailyAnalytics } from 'src/common/entities/daily-analytics.entity';
       UserSummaries,
       UserDocument,
       DailyAnalytics,
+      PushToken,
+      NotificationSettings,
     ]),
   ],
   controllers: [OnBoardingController],
