@@ -7,6 +7,7 @@
  *  - Exposes FcmController endpoints
  *  - Initializes a singleton Firebase Admin app (from service account if provided)
  *  - Provides NotificationService for saving tokens and sending notifications
+ *  - Provides EventListenerService for Redis pub/sub events from AI service
  */
 
 import { Module } from '@nestjs/common';
@@ -18,6 +19,7 @@ import * as path from 'node:path';
 import { NotificationService } from 'src/modules/notifications/notification.service';
 import { FcmController } from 'src/modules/notifications/notification.controller';
 import { UserFcmToken } from 'src/common/entities/user-fcm-token.entity';
+import { EventListenerService } from 'src/modules/notifications/event-listener.service';
 
 // Injection token for the Firebase Admin app instance
 export const FIREBASE_APP = 'FIREBASE_APP';
@@ -91,9 +93,12 @@ export const FIREBASE_APP = 'FIREBASE_APP';
 
     // Business logic for saving tokens and sending pushes
     NotificationService,
+
+    // Redis event listener for cross-service events (matches_ready, etc.)
+    EventListenerService,
   ],
 
   // Make the service available to other modules
-  exports: [NotificationService],
+  exports: [NotificationService, EventListenerService],
 })
 export class NotificationModule {}
