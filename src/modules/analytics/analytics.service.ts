@@ -17,6 +17,7 @@ import { User } from 'src/common/entities/user.entity';
 import { Match } from 'src/common/entities/match.entity';
 import { AiConversation } from 'src/common/entities/ai-conversation.entity';
 import { Message } from 'src/common/entities/message.entity';
+import { ConversationStatusEnum } from 'src/common/enums';
 import {
   TrackEventDto,
   FunnelQueryDto,
@@ -256,10 +257,11 @@ export class AnalyticsService {
         attributes: ['status'],
         raw: true,
       }),
+      // BUG-122 FIX: Use ConversationStatusEnum.COMPLETED instead of 'closed'
       this.aiConversationModel.count({
         where: {
           [Op.or]: [{ user_a_id: userId }, { user_b_id: userId }],
-          status: 'closed',
+          status: ConversationStatusEnum.COMPLETED,
         },
       }),
       this.messageModel.count({

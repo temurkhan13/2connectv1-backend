@@ -70,6 +70,7 @@ export enum AgnetReviewSubStatusEnum {
 export enum ConversationStatusEnum {
   OPEN = 'open',
   DELETED = 'deleted',
+  COMPLETED = 'completed',  // BUG-122 FIX: Added missing status for completed AI conversations
 }
 
 export enum RoleEnum {
