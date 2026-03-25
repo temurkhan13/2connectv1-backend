@@ -8,6 +8,7 @@ import {
   ArrayUnique,
   // ValidatorConstraintInterface,
   IsString,
+  IsNumber,
   ArrayMinSize,
   IsOptional,
 } from 'class-validator';
@@ -33,6 +34,11 @@ export class MatchItemDto {
   @ApiProperty({ format: 'string', example: 'Product Manager' })
   @IsString()
   target_user_designation!: string; // keep snake_case to match incoming JSON
+
+  @ApiProperty({ example: 78, description: 'AI-calculated match score (0-100)' })
+  @IsOptional()
+  @IsNumber()
+  match_score?: number; // AI-calculated score, defaults to 50 if not provided
 }
 
 export class MatchesItemDto {
@@ -51,6 +57,11 @@ export class MatchesItemDto {
   @ApiProperty({ format: 'string', example: 'Product Manager' })
   @IsString()
   user_b_designation!: string; // keep snake_case to match incoming JSON
+
+  @ApiProperty({ example: 78, description: 'AI-calculated match score (0-100)' })
+  @IsOptional()
+  @IsNumber()
+  match_score?: number; // AI-calculated score, defaults to 50 if not provided
 }
 
 export class UserMatchesReadyWebhookDto {

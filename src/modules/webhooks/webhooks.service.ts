@@ -169,11 +169,16 @@ export class WebhooksService {
       throw new BadRequestException('batch_id, user_id and matches[] are required');
     }
 
-    // 2) collect targets and optional designations
+    // 2) collect targets, designations, and scores
     const byId = new Map<string, string | null>();
+    const scoreById = new Map<string, number>();
     if (matches.length > 0) {
       for (const m of matches) {
-        if (m?.target_user_id) byId.set(m.target_user_id, m.target_user_designation ?? null);
+        if (m?.target_user_id) {
+          byId.set(m.target_user_id, m.target_user_designation ?? null);
+          // Store AI-calculated match score (0-100), default 50 if not provided
+          scoreById.set(m.target_user_id, (m as any).match_score ?? 50);
+        }
       }
       const targetIds = [...byId.keys()];
       if (targetIds.length > 0) {
@@ -238,8 +243,9 @@ export class WebhooksService {
             user_b_id: tid,
             user_a_feedback: null,
             user_b_feedback: null,
-            user_a_persona_compatibility_score: null,
-            user_b_persona_compatibility_score: null,
+            // Use AI-calculated score instead of null (which defaults to 50)
+            user_a_persona_compatibility_score: scoreById.get(tid) ?? 50,
+            user_b_persona_compatibility_score: scoreById.get(tid) ?? 50,
             user_a_decision: null,
             user_b_decision: null,
             user_a_designation: null,
@@ -374,6 +380,7 @@ export class WebhooksService {
       user_b_id: string;
       user_a_designation?: string | null;
       user_b_designation?: string | null;
+      match_score?: number | null;
     };
 
     const incoming: InPair[] = [];
@@ -395,6 +402,7 @@ export class WebhooksService {
           user_b_id: ub,
           user_a_designation: m?.user_a_designation ?? null,
           user_b_designation: m?.user_b_designation ?? null,
+          match_score: (m as any)?.match_score ?? null,
         });
 
         allUserIds.add(ua);
@@ -458,8 +466,9 @@ export class WebhooksService {
             user_b_id: p.user_b_id,
             user_a_feedback: null,
             user_b_feedback: null,
-            user_a_persona_compatibility_score: null,
-            user_b_persona_compatibility_score: null,
+            // Use AI-calculated score instead of null (which defaults to 50)
+            user_a_persona_compatibility_score: p.match_score ?? 50,
+            user_b_persona_compatibility_score: p.match_score ?? 50,
             user_a_decision: MatchStatusEnum.PENDING,
             user_b_decision: MatchStatusEnum.PENDING,
             user_a_designation: p.user_a_designation ?? null,
