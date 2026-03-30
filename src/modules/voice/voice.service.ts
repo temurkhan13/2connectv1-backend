@@ -22,16 +22,25 @@ export class VoiceService {
 
     const filename = file.originalname || `recording.${this.getExtension(file.mimetype)}`;
 
-    // Build multipart form data manually using Blob (Node 18+)
-    const formData = new globalThis.FormData();
-    const blob = new Blob([file.buffer], { type: file.mimetype });
-    formData.append('file', blob, filename);
+    // Build multipart boundary manually for Node compatibility
+    const boundary = '----FormBoundary' + Math.random().toString(36).substring(2);
+    const crlf = '\r\n';
+
+    const header = `--${boundary}${crlf}Content-Disposition: form-data; name="file"; filename="${filename}"${crlf}Content-Type: ${file.mimetype}${crlf}${crlf}`;
+    const footer = `${crlf}--${boundary}--${crlf}`;
+
+    const payload = Buffer.concat([
+      Buffer.from(header, 'utf-8'),
+      file.buffer,
+      Buffer.from(footer, 'utf-8'),
+    ]);
 
     try {
       this.logger.log(`[VOICE] Forwarding ${file.size} bytes (${file.mimetype}) to AI service`);
 
-      const response = await axios.post(`${aiServiceUrl}/voice/transcribe`, formData, {
+      const response = await axios.post(`${aiServiceUrl}/voice/transcribe`, payload, {
         headers: {
+          'Content-Type': `multipart/form-data; boundary=${boundary}`,
           'X-API-KEY': aiApiKey,
         },
         timeout: 30000,
