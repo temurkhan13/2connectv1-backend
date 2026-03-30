@@ -41,12 +41,15 @@ export class SchedulerService {
     }
   }
 
-  @Cron('0 0 */4 * * *', {
-    // every 4 hours
+  @Cron('0 0 3 * * *', {
+    // Once daily at 3:00 AM UTC (reduced from every 4 hours)
+    // Inline matching handles new users immediately on onboarding.
+    // This cron is a safety net for admin imports, embedding changes, etc.
+    // It was blocking the AI service for minutes when processing 100+ users.
     timeZone: 'UTC',
   })
   async matchingCycleCron() {
-    this.logger.log(`=+=+=+=+=+ TRIGGER MATCH CYCLE CRON =+=+=+=+=+`);
+    this.logger.log(`=+=+=+=+=+ TRIGGER MATCH CYCLE CRON (DAILY) =+=+=+=+=+`);
     try {
       await this.aiService.triggerMatchCycle();
       this.logger.debug(`Match cycle triggered`);

@@ -24,6 +24,7 @@ import { SuperAdminModule } from 'src/modules/super-admin/super-admin.module';
 import { AIServiceModule } from 'src/integration/ai-service/ai-service.module';
 import { SchedulerModule } from 'src/modules/scheduler/scheduler.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
+import { VoiceModule } from 'src/modules/voice/voice.module';
 // Phase 3-4: Advanced Features
 import { DiscoverModule } from 'src/modules/discover/discover.module';
 import { AnalyticsModule } from 'src/modules/analytics/analytics.module';
@@ -63,6 +64,7 @@ import { AnalyticsModule } from 'src/modules/analytics/analytics.module';
     SuperAdminModule,
     SchedulerModule,
     RealtimeModule,
+    VoiceModule,
     // Phase 3-4: Advanced Features
     DiscoverModule,
     AnalyticsModule,
