@@ -151,7 +151,9 @@ export class EventsService {
     if (!event) throw new NotFoundException('Event not found');
 
     // Validate access code
-    if (event.access_code.toLowerCase() !== dto.code.toLowerCase()) {
+    // Note: with underscored:true, DB column access_code maps to JS accessCode
+    const eventCode = (event as any).access_code || (event as any).accessCode || '';
+    if (eventCode.toLowerCase() !== dto.code.toLowerCase()) {
       throw new BadRequestException('Invalid event access code');
     }
 
@@ -172,7 +174,8 @@ export class EventsService {
 
     // Check max participants
     const currentCount = await this.participantModel.count({ where: { event_id: eventId } });
-    if (currentCount >= event.max_participants) {
+    const maxParticipants = (event as any).max_participants || (event as any).maxParticipants || 500;
+    if (currentCount >= maxParticipants) {
       throw new BadRequestException('This event has reached maximum capacity');
     }
 
