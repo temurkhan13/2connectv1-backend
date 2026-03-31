@@ -7,6 +7,7 @@
 
 import { Injectable, Logger, InternalServerErrorException } from '@nestjs/common';
 import axios from 'axios';
+import * as FormData from 'form-data';
 
 @Injectable()
 export class VoiceService {
@@ -18,31 +19,22 @@ export class VoiceService {
    */
   async transcribe(file: Express.Multer.File): Promise<{ text: string }> {
     const aiServiceUrl = process.env.AI_SERVICE_URL || 'https://twoconnectv1-ai.onrender.com/api/v1';
-    const aiApiKey = process.env.AI_SERVICE_API_KEY || '';
 
-    const filename = file.originalname || `recording.${this.getExtension(file.mimetype)}`;
-
-    // Build multipart boundary manually for Node compatibility
-    const boundary = '----FormBoundary' + Math.random().toString(36).substring(2);
-    const crlf = '\r\n';
-
-    const header = `--${boundary}${crlf}Content-Disposition: form-data; name="file"; filename="${filename}"${crlf}Content-Type: ${file.mimetype}${crlf}${crlf}`;
-    const footer = `${crlf}--${boundary}--${crlf}`;
-
-    const payload = Buffer.concat([
-      Buffer.from(header, 'utf-8'),
-      file.buffer,
-      Buffer.from(footer, 'utf-8'),
-    ]);
+    const ext = this.getExtension(file.mimetype);
+    const filename = file.originalname || `recording.${ext}`;
 
     try {
       this.logger.log(`[VOICE] Forwarding ${file.size} bytes (${file.mimetype}) to AI service`);
 
-      const response = await axios.post(`${aiServiceUrl}/voice/transcribe`, payload, {
-        headers: {
-          'Content-Type': `multipart/form-data; boundary=${boundary}`,
-          'X-API-KEY': aiApiKey,
-        },
+      // Use form-data package for proper multipart construction
+      const form = new FormData();
+      form.append('file', file.buffer, {
+        filename,
+        contentType: file.mimetype,
+      });
+
+      const response = await axios.post(`${aiServiceUrl}/voice/transcribe`, form, {
+        headers: form.getHeaders(),
         timeout: 30000,
         maxContentLength: 25 * 1024 * 1024,
         maxBodyLength: 25 * 1024 * 1024,

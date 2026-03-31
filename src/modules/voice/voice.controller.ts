@@ -59,9 +59,13 @@ export class VoiceController {
       storage: multer.memoryStorage(),
       limits: { fileSize: MAX_AUDIO_BYTES },
       fileFilter: (req, file, cb) => {
-        if (!ALLOWED_AUDIO_MIME.has(file.mimetype)) {
-          return cb(new BadRequestException('Unsupported audio format. Supported: webm, mp4, mp3, wav, ogg, m4a'), false);
+        // Browser may send "audio/webm;codecs=opus" — check base type
+        const baseMime = file.mimetype.split(';')[0].trim();
+        if (!ALLOWED_AUDIO_MIME.has(baseMime)) {
+          return cb(new BadRequestException(`Unsupported audio format: ${file.mimetype}. Supported: webm, mp4, mp3, wav, ogg, m4a`), false);
         }
+        // Normalize mimetype for downstream
+        file.mimetype = baseMime;
         cb(null, true);
       },
     }),
