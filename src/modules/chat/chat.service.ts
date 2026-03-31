@@ -65,13 +65,13 @@ export class ChatService {
     // Enrich each conversation with last message and unread count
     const enriched = await Promise.all(
       conversations.map(async (conv) => {
-        // Decrypt last message content
+        // Decrypt last message content (parameterized)
         const [lastMsgRows] = await this.sequelize.query(`
           SELECT id, conversation_id, sender_id, decrypt_message(content) as content,
                  message_type, read_at, created_at
-          FROM chat_messages WHERE conversation_id = '${conv.id}'
+          FROM chat_messages WHERE conversation_id = :convId
           ORDER BY created_at DESC LIMIT 1
-        `);
+        `, { replacements: { convId: conv.id } });
         const lastMessage = (lastMsgRows as any[])[0] || null;
 
         const unreadCount = await this.messageModel.count({
@@ -132,18 +132,21 @@ export class ChatService {
       throw new ForbiddenException('Not a member of this conversation');
     }
 
-    // Use raw query to decrypt content at rest
-    const beforeClause = before ? `AND created_at < '${before}'` : '';
+    // Use raw query to decrypt content at rest (parameterized)
+    const beforeClause = before ? 'AND created_at < :before' : '';
+    const replacements: any = { convId: conversationId, lim: limit + 1 };
+    if (before) replacements.before = before;
+
     const [messages] = await this.sequelize.query(`
       SELECT id, conversation_id, sender_id,
              decrypt_message(content) as content,
              message_type, read_at, created_at,
              attachment_url, attachment_name, attachment_size
       FROM chat_messages
-      WHERE conversation_id = '${conversationId}' ${beforeClause}
+      WHERE conversation_id = :convId ${beforeClause}
       ORDER BY created_at DESC
-      LIMIT ${limit + 1}
-    `);
+      LIMIT :lim
+    `, { replacements });
 
     const hasMore = messages.length > limit;
     const result = hasMore ? messages.slice(0, limit) : messages;
@@ -172,19 +175,24 @@ export class ChatService {
       throw new ForbiddenException('Not a member of this conversation');
     }
 
-    // Encrypt content at rest using pgcrypto
-    const message = await this.messageModel.create({
-      conversation_id: conversationId,
-      sender_id: senderId,
-      content: literal(`encrypt_message('${content.replace(/'/g, "''")}')`),
-      message_type: messageType,
-      attachment_url: attachmentUrl || null,
-      attachment_name: attachmentName || null,
-      attachment_size: attachmentSize || null,
-    } as any);
-
-    // Return decrypted content to sender
-    message.content = content;
+    // Encrypt content at rest using pgcrypto via raw SQL (safe parameterized query)
+    const [insertResult] = await this.sequelize.query(
+      `INSERT INTO chat_messages (id, conversation_id, sender_id, content, message_type, attachment_url, attachment_name, attachment_size, created_at)
+       VALUES (gen_random_uuid(), :convId, :senderId, encrypt_message(:content), :msgType, :attUrl, :attName, :attSize, NOW())
+       RETURNING id, conversation_id, sender_id, decrypt_message(content) as content, message_type, read_at, created_at, attachment_url, attachment_name, attachment_size`,
+      {
+        replacements: {
+          convId: conversationId,
+          senderId: senderId,
+          content: content,
+          msgType: messageType,
+          attUrl: attachmentUrl || null,
+          attName: attachmentName || null,
+          attSize: attachmentSize || null,
+        },
+      }
+    );
+    const message = (insertResult as any[])[0] as ChatMessage;
 
     // Update conversation's last_message_at
     await conversation.update({ last_message_at: message.created_at });
