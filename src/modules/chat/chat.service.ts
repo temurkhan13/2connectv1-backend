@@ -4,6 +4,8 @@ import { Op, literal, fn, col } from 'sequelize';
 import { Sequelize } from 'sequelize-typescript';
 import { ChatConversation } from 'src/common/entities/chat-conversation.entity';
 import { ChatMessage } from 'src/common/entities/chat-message.entity';
+import { BlockedUser } from 'src/common/entities/blocked-user.entity';
+import { ReportedUser } from 'src/common/entities/reported-user.entity';
 import { User } from 'src/common/entities/user.entity';
 
 @Injectable()
@@ -15,6 +17,10 @@ export class ChatService {
     private conversationModel: typeof ChatConversation,
     @InjectModel(ChatMessage)
     private messageModel: typeof ChatMessage,
+    @InjectModel(BlockedUser)
+    private blockedUserModel: typeof BlockedUser,
+    @InjectModel(ReportedUser)
+    private reportedUserModel: typeof ReportedUser,
     private sequelize: Sequelize,
   ) {}
 
@@ -175,6 +181,12 @@ export class ChatService {
       throw new ForbiddenException('Not a member of this conversation');
     }
 
+    // Check if either user has blocked the other
+    const otherId = conversation.user1_id === senderId ? conversation.user2_id : conversation.user1_id;
+    if (await this.isBlocked(senderId, otherId)) {
+      throw new ForbiddenException('Cannot send messages — user is blocked');
+    }
+
     // Encrypt content at rest using pgcrypto via raw SQL (safe parameterized query)
     const [insertResult] = await this.sequelize.query(
       `INSERT INTO chat_messages (id, conversation_id, sender_id, content, message_type, attachment_url, attachment_name, attachment_size, created_at)
@@ -250,5 +262,87 @@ export class ChatService {
         read_at: null,
       },
     });
+  }
+
+  /**
+   * Block a user. Blocked users cannot send messages to blocker.
+   */
+  async blockUser(blockerId: string, blockedId: string): Promise<void> {
+    await this.blockedUserModel.findOrCreate({
+      where: { blocker_id: blockerId, blocked_id: blockedId },
+      defaults: { blocker_id: blockerId, blocked_id: blockedId },
+    });
+    this.logger.log(`User ${blockerId} blocked ${blockedId}`);
+  }
+
+  /**
+   * Unblock a user.
+   */
+  async unblockUser(blockerId: string, blockedId: string): Promise<void> {
+    await this.blockedUserModel.destroy({
+      where: { blocker_id: blockerId, blocked_id: blockedId },
+    });
+  }
+
+  /**
+   * Check if a user is blocked by another user.
+   */
+  async isBlocked(userId1: string, userId2: string): Promise<boolean> {
+    const block = await this.blockedUserModel.findOne({
+      where: {
+        [Op.or]: [
+          { blocker_id: userId1, blocked_id: userId2 },
+          { blocker_id: userId2, blocked_id: userId1 },
+        ],
+      },
+    });
+    return !!block;
+  }
+
+  /**
+   * Get list of users blocked by this user.
+   */
+  async getBlockedUsers(userId: string): Promise<string[]> {
+    const blocks = await this.blockedUserModel.findAll({
+      where: { blocker_id: userId },
+      attributes: ['blocked_id'],
+    });
+    return blocks.map((b) => b.blocked_id);
+  }
+
+  /**
+   * Report a user.
+   */
+  async reportUser(
+    reporterId: string,
+    reportedId: string,
+    reason: string,
+    details?: string,
+    conversationId?: string,
+  ): Promise<void> {
+    await this.reportedUserModel.create({
+      reporter_id: reporterId,
+      reported_id: reportedId,
+      reason,
+      details: details || null,
+      conversation_id: conversationId || null,
+    });
+    this.logger.log(`User ${reporterId} reported ${reportedId}: ${reason}`);
+  }
+
+  /**
+   * Delete a conversation and all its messages.
+   */
+  async deleteConversation(conversationId: string, userId: string): Promise<void> {
+    const conversation = await this.conversationModel.findByPk(conversationId);
+    if (!conversation) throw new NotFoundException('Conversation not found');
+    if (conversation.user1_id !== userId && conversation.user2_id !== userId) {
+      throw new ForbiddenException('Not a member of this conversation');
+    }
+
+    // Delete all messages first, then conversation
+    await this.messageModel.destroy({ where: { conversation_id: conversationId } });
+    await conversation.destroy();
+    this.logger.log(`Conversation ${conversationId} deleted by ${userId}`);
   }
 }

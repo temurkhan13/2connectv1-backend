@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Param,
   Body,
   Query,
@@ -113,5 +114,65 @@ export class ChatController {
     const userId = req.user.id;
     const count = await this.chatService.getTotalUnreadCount(userId);
     return { success: true, data: { unreadCount: count } };
+  }
+
+  /**
+   * POST /chat/block
+   * Block a user from messaging you.
+   */
+  @Post('block')
+  async blockUser(@Req() req: any, @Body() body: { userId: string }) {
+    const userId = req.user.id;
+    await this.chatService.blockUser(userId, body.userId);
+    return { success: true, data: { blocked: true } };
+  }
+
+  /**
+   * DELETE /chat/block/:userId
+   * Unblock a user.
+   */
+  @Delete('block/:userId')
+  async unblockUser(@Req() req: any, @Param('userId') blockedId: string) {
+    const userId = req.user.id;
+    await this.chatService.unblockUser(userId, blockedId);
+    return { success: true, data: { unblocked: true } };
+  }
+
+  /**
+   * GET /chat/blocked
+   * Get list of blocked user IDs.
+   */
+  @Get('blocked')
+  async getBlockedUsers(@Req() req: any) {
+    const userId = req.user.id;
+    const blocked = await this.chatService.getBlockedUsers(userId);
+    return { success: true, data: blocked };
+  }
+
+  /**
+   * POST /chat/report
+   * Report a user.
+   */
+  @Post('report')
+  async reportUser(
+    @Req() req: any,
+    @Body() body: { userId: string; reason: string; details?: string; conversationId?: string },
+  ) {
+    const reporterId = req.user.id;
+    await this.chatService.reportUser(
+      reporterId, body.userId, body.reason, body.details, body.conversationId,
+    );
+    return { success: true, data: { reported: true } };
+  }
+
+  /**
+   * DELETE /chat/conversations/:id
+   * Delete a conversation and all its messages.
+   */
+  @Delete('conversations/:id')
+  async deleteConversation(@Req() req: any, @Param('id') conversationId: string) {
+    const userId = req.user.id;
+    await this.chatService.deleteConversation(conversationId, userId);
+    return { success: true, data: { deleted: true } };
   }
 }
