@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
-import { Op } from 'sequelize';
+import { Op, literal, fn, col } from 'sequelize';
+import { Sequelize } from 'sequelize-typescript';
 import { ChatConversation } from 'src/common/entities/chat-conversation.entity';
 import { ChatMessage } from 'src/common/entities/chat-message.entity';
 import { User } from 'src/common/entities/user.entity';
@@ -14,6 +15,7 @@ export class ChatService {
     private conversationModel: typeof ChatConversation,
     @InjectModel(ChatMessage)
     private messageModel: typeof ChatMessage,
+    private sequelize: Sequelize,
   ) {}
 
   /**
@@ -63,10 +65,14 @@ export class ChatService {
     // Enrich each conversation with last message and unread count
     const enriched = await Promise.all(
       conversations.map(async (conv) => {
-        const lastMessage = await this.messageModel.findOne({
-          where: { conversation_id: conv.id },
-          order: [['created_at', 'DESC']],
-        });
+        // Decrypt last message content
+        const [lastMsgRows] = await this.sequelize.query(`
+          SELECT id, conversation_id, sender_id, decrypt_message(content) as content,
+                 message_type, read_at, created_at
+          FROM chat_messages WHERE conversation_id = '${conv.id}'
+          ORDER BY created_at DESC LIMIT 1
+        `);
+        const lastMessage = (lastMsgRows as any[])[0] || null;
 
         const unreadCount = await this.messageModel.count({
           where: {
@@ -126,21 +132,23 @@ export class ChatService {
       throw new ForbiddenException('Not a member of this conversation');
     }
 
-    const whereClause: any = { conversation_id: conversationId };
-    if (before) {
-      whereClause.created_at = { [Op.lt]: before };
-    }
-
-    const messages = await this.messageModel.findAll({
-      where: whereClause,
-      order: [['created_at', 'DESC']],
-      limit: limit + 1, // Fetch one extra to check if there are more
-    });
+    // Use raw query to decrypt content at rest
+    const beforeClause = before ? `AND created_at < '${before}'` : '';
+    const [messages] = await this.sequelize.query(`
+      SELECT id, conversation_id, sender_id,
+             decrypt_message(content) as content,
+             message_type, read_at, created_at,
+             attachment_url, attachment_name, attachment_size
+      FROM chat_messages
+      WHERE conversation_id = '${conversationId}' ${beforeClause}
+      ORDER BY created_at DESC
+      LIMIT ${limit + 1}
+    `);
 
     const hasMore = messages.length > limit;
     const result = hasMore ? messages.slice(0, limit) : messages;
 
-    return { messages: result.reverse(), hasMore };
+    return { messages: (result as ChatMessage[]).reverse(), hasMore };
   }
 
   /**
@@ -164,15 +172,19 @@ export class ChatService {
       throw new ForbiddenException('Not a member of this conversation');
     }
 
+    // Encrypt content at rest using pgcrypto
     const message = await this.messageModel.create({
       conversation_id: conversationId,
       sender_id: senderId,
-      content,
+      content: literal(`encrypt_message('${content.replace(/'/g, "''")}')`),
       message_type: messageType,
       attachment_url: attachmentUrl || null,
       attachment_name: attachmentName || null,
       attachment_size: attachmentSize || null,
-    });
+    } as any);
+
+    // Return decrypted content to sender
+    message.content = content;
 
     // Update conversation's last_message_at
     await conversation.update({ last_message_at: message.created_at });
