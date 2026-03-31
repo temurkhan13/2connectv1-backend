@@ -44,12 +44,28 @@ export const FIREBASE_APP = 'FIREBASE_APP';
         const credPathFromEnv = process.env.GOOGLE_APPLICATION_CREDENTIALS;
         const credPath = credPathFromConfig || credPathFromEnv;
 
-        // 3) If no path is set, fall back to default credentials
+        // 3) Check for inline JSON credentials (for Render/cloud deployments)
+        const credJson = config.get<string>('FIREBASE_SERVICE_ACCOUNT_JSON') || process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+        if (credJson) {
+          try {
+            const serviceAccount = JSON.parse(credJson);
+            console.log('[FIREBASE_APP] Initialized from FIREBASE_SERVICE_ACCOUNT_JSON env var');
+            return admin.initializeApp({
+              credential: admin.credential.cert(serviceAccount),
+            });
+          } catch (parseErr: any) {
+            console.error('[FIREBASE_APP] Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON:', parseErr.message);
+            throw parseErr;
+          }
+        }
+
+        // 4) If no path or inline JSON, fall back to default credentials
         if (!credPath) {
+          console.warn('[FIREBASE_APP] No credentials configured, using default');
           return admin.initializeApp();
         }
 
-        // 4) Resolve to absolute path (important in Docker/EC2)
+        // 5) Resolve to absolute path (important in Docker/EC2)
         const resolved = path.resolve(credPath);
 
         try {
