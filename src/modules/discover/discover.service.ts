@@ -154,7 +154,7 @@ export class DiscoverService {
         id: user.id,
         display_name: `Member #${user.id.substring(0, 8).toUpperCase()}`,
         profile_summary: this.anonymizeSummary(summary?.summary || ''),
-        objectives: [], // Would extract from onboarding answers
+        objectives: this.extractObjectives(summary?.summary || ''),
         urgency: summary?.urgency || 'ongoing',
         freshness_score: summary?.freshness_score || 0.5,
         member_since: user.created_at,
@@ -581,147 +581,220 @@ export class DiscoverService {
    * - Cleans up newlines and excess whitespace
    * - Removes placeholder artifacts like [Name], [Amount]
    */
+  /**
+   * Extract objectives from summary markdown for filter chips.
+   */
+  private extractObjectives(summary: string): string[] {
+    if (!summary) return [];
+    const sections = this.parseMarkdownSections(summary);
+    const goal = sections['Primary Goal'] || '';
+    if (!goal || goal === 'Not specified') return [];
+
+    // Map goal text to standardized objectives
+    const objectives: string[] = [];
+    const lower = goal.toLowerCase();
+    if (lower.includes('fund') || lower.includes('invest') || lower.includes('capital')) objectives.push('Fundraising');
+    if (lower.includes('hire') || lower.includes('talent') || lower.includes('recruit')) objectives.push('Hiring');
+    if (lower.includes('partner') || lower.includes('collaborat')) objectives.push('Partnership');
+    if (lower.includes('mentor')) objectives.push('Mentorship');
+    if (lower.includes('job') || lower.includes('role') || lower.includes('career') || lower.includes('opportunity')) objectives.push('Job Search');
+    if (lower.includes('co-founder') || lower.includes('cofounder')) objectives.push('Co-founder');
+    if (objectives.length === 0) objectives.push(goal.substring(0, 30));
+    return objectives;
+  }
+
+  /**
+   * Parse markdown summary into structured sections, then produce
+   * a clean, readable anonymous profile text for the Discover page.
+   */
   private anonymizeSummary(summary: string): string {
     if (!summary) return '';
 
-    // P0 FIX: Detect raw JSON objects and extract useful content or fallback
     const trimmed = summary.trim();
+
+    // Handle raw JSON summaries (legacy)
     if (trimmed.startsWith('{') && trimmed.includes('"')) {
-      try {
-        const parsed = JSON.parse(trimmed);
-        // Try to extract meaningful content from known JSON fields
-        const extractedParts: string[] = [];
-
-        // Handle profile_type - use it as the role descriptor
-        const profileType = parsed.profile_type || parsed.archetype || parsed.user_type;
-        if (profileType && profileType !== 'Unknown' && profileType !== 'unknown') {
-          extractedParts.push(`A ${profileType}`);
-        }
-
-        // Handle industry - can be string or array
-        const industry = parsed.industry || parsed.focus;
-        if (industry) {
-          const industryStr = Array.isArray(industry) ? industry.slice(0, 3).join(', ') : industry;
-          if (industryStr && industryStr.length > 2) {
-            extractedParts.push(`in ${industryStr}`);
-          }
-        }
-
-        // Handle stage
-        if (parsed.stage) {
-          extractedParts.push(`at ${parsed.stage} stage`);
-        }
-
-        // Handle goal/objective
-        const goal = parsed.goal || parsed.objective || parsed.looking_for;
-        if (goal && goal.length > 5) {
-          // Truncate long goals
-          const goalText = goal.length > 80 ? goal.substring(0, 80) + '...' : goal;
-          extractedParts.push(`focused on ${goalText}`);
-        }
-
-        // Handle offerings
-        if (parsed.offerings && parsed.offerings.length > 10) {
-          extractedParts.push(`offering ${parsed.offerings.substring(0, 80)}`);
-        }
-
-        if (extractedParts.length > 0) {
-          // Add a professional prefix if none was added from profile_type
-          let result = extractedParts.join(', ');
-          if (!result.startsWith('A ')) {
-            result = 'Professional ' + result;
-          }
-          return result + '.';
-        }
-        // If no useful fields, return generic fallback
-        return 'A professional seeking meaningful connections.';
-      } catch {
-        // Not valid JSON but starts with { - likely partial/corrupted, use fallback
-        if (trimmed.includes('"profile_type"') || trimmed.includes('"industry"')) {
-          return 'A professional seeking meaningful connections.';
-        }
-      }
+      return this.anonymizeJsonSummary(trimmed);
     }
 
-    // P0 FIX: Detect test account patterns and return generic text
-    const lowerSummary = summary.toLowerCase();
-    if (
-      lowerSummary.startsWith('test ') ||
-      lowerSummary.includes('test ai summary') ||
-      lowerSummary.includes('ai summary for') ||
-      /\btest[._]?\w+\b/.test(lowerSummary) || // test.user, test_user, testuser
-      /\bfor\s+[a-z]+[._][a-z]+\b/.test(lowerSummary) // "for john.doe" username patterns
-    ) {
+    // Detect test accounts
+    const lower = summary.toLowerCase();
+    if (lower.startsWith('test ') || lower.includes('test ai summary') || lower.includes('ai summary for')) {
       return 'A professional seeking meaningful connections.';
     }
 
-    let anonymized = summary
-      // First clean up any raw newlines and normalize whitespace
-      .replace(/\\n/g, ' ') // Escaped newlines
-      .replace(/\n/g, ' ') // Actual newlines
-      .replace(/\r/g, ' ') // Carriage returns
-      .replace(/\t/g, ' ') // Tabs
-      .replace(/\s+/g, ' ') // Multiple spaces to single space
-      .trim();
+    // Parse markdown summary into sections
+    const sections = this.parseMarkdownSections(summary);
 
-    // Remove internal persona metadata fields that shouldn't be shown to users
-    anonymized = anonymized
-      // Remove persona field markers and their values (e.g., "Archetype: Founder/Entrepreneur")
-      .replace(/\bArchetype:\s*[^.]*\.?/gi, '')
-      .replace(/\bDesignation:\s*[^.]*\.?/gi, '')
-      .replace(/\bExperience:\s*[^.]*\.?/gi, '')
-      .replace(/\bFocus:\s*[^.]*\.?/gi, '')
-      .replace(/\bPersona:\s*[^.]*\.?/gi, '')
-      .replace(/\bProfile:\s*[^.]*\.?/gi, '')
-      // Remove "Not specified" and "Not provided" artifacts
-      .replace(/\bNot specified\b/gi, '')
-      .replace(/\bNot provided\b/gi, '')
-      // Remove markdown-style headers that may leak through (e.g., "## Investment Philosophy")
-      .replace(/#+\s*[A-Za-z\s]+/g, '')
-      // Remove leading dashes that may appear as bullet points or formatting artifacts
-      .replace(/^\s*-+\s*/gm, '')
-      .replace(/\s+-+\s+/g, ' ')
-      // Clean up after metadata removal
-      .replace(/\s+/g, ' ')
-      .trim();
+    // Build clean anonymous summary from sections
+    const parts: string[] = [];
 
-    // Remove potential PII - be conservative to avoid breaking content
-    anonymized = anonymized
-      // P0 FIX: Remove username patterns (word.word, word_word) that reveal identity
-      .replace(/\b[a-z]+[._][a-z]+\d*\b/gi, 'a user')
-      // P0 FIX: Remove "for [Name]" patterns that reveal identity
-      .replace(/\bfor\s+[A-Z][a-z]+(\s+[A-Z][a-z]+)?\b/g, '')
-      // P0 FIX: Remove "Test" prefix patterns
-      .replace(/\bTest\s+(AI\s+)?(summary|user|account|profile)\b/gi, 'Professional')
-      // Remove company names with suffixes - include preceding article to avoid "a a company"
-      .replace(/\b(a |an |the )?[A-Z][a-zA-Z]+\s+(Inc|LLC|Ltd|Corp|Company|Co)\.?\b/gi, 'a company')
-      // Remove dollar amounts but keep context
-      .replace(/\$[\d,]+(\.\d{2})?(\s*(million|billion|M|B|K))?/gi, 'significant funding')
-      // Remove long numbers (phone, ID, etc.)
-      .replace(/\b\d{10,}\b/g, '')
-      // Remove email addresses
-      .replace(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g, '')
-      // Remove existing placeholder artifacts that may exist in data
-      .replace(/\[Name\]/gi, 'the professional')
-      .replace(/\[Company\]/gi, 'their company')
-      .replace(/\[Amount\]/gi, 'funding')
-      .replace(/\[Number\]/gi, '')
-      // Clean up any double spaces created by removals
-      .replace(/\s+/g, ' ')
-      .trim();
+    // Industry + Stage line
+    const industry = sections['Industry Focus'] || sections['Industry'];
+    const stage = sections['Stage'];
+    if (industry && industry !== 'Not specified') {
+      let line = `Industry: ${industry}`;
+      if (stage && stage !== 'Not specified') line += ` · ${stage}`;
+      parts.push(line);
+    } else if (stage && stage !== 'Not specified') {
+      parts.push(`Stage: ${stage}`);
+    }
+
+    // Experience
+    const experience = sections['Experience'];
+    if (experience && experience !== 'Not specified') {
+      parts.push(`Experience: ${experience}`);
+    }
+
+    // Skills
+    const skills = sections['Skills & Expertise'] || sections['Skills'];
+    if (skills && skills !== 'Not specified') {
+      parts.push(`Skills: ${skills}`);
+    }
+
+    // What they offer
+    const offerings = sections['What I Can Offer'] || sections['Offerings'];
+    if (offerings && offerings !== 'Not specified') {
+      const offerText = offerings.length > 120 ? offerings.substring(0, 120) + '...' : offerings;
+      parts.push(`Offers: ${offerText}`);
+    }
+
+    // What they're looking for
+    const requirements = sections['What I\'m Looking For'] || sections['Looking For'] || sections['Requirements'];
+    if (requirements && requirements !== 'Not specified') {
+      const reqText = requirements.length > 120 ? requirements.substring(0, 120) + '...' : requirements;
+      parts.push(`Looking for: ${reqText}`);
+    }
+
+    // Key achievement
+    const achievement = sections['Key Achievement'];
+    if (achievement && achievement !== 'Not specified') {
+      parts.push(`Achievement: ${achievement}`);
+    }
+
+    if (parts.length === 0) {
+      // Fallback: clean the raw text
+      return this.cleanRawText(summary);
+    }
+
+    // Remove PII from the result
+    let result = parts.join(' · ');
+    result = this.removePII(result);
 
     // Limit length
-    if (anonymized.length > 300) {
-      // Try to end at a sentence boundary
-      const truncated = anonymized.substring(0, 297);
-      const lastPeriod = truncated.lastIndexOf('.');
-      if (lastPeriod > 200) {
-        anonymized = truncated.substring(0, lastPeriod + 1);
-      } else {
-        anonymized = truncated + '...';
+    if (result.length > 350) {
+      const truncated = result.substring(0, 347);
+      const lastDot = truncated.lastIndexOf('·');
+      result = lastDot > 200 ? truncated.substring(0, lastDot).trim() : truncated + '...';
+    }
+
+    return result;
+  }
+
+  /**
+   * Parse markdown with ## headers into key-value sections.
+   */
+  private parseMarkdownSections(markdown: string): Record<string, string> {
+    const sections: Record<string, string> = {};
+    const lines = markdown.split('\n');
+    let currentSection = '';
+
+    for (const line of lines) {
+      const trimLine = line.trim();
+
+      // Skip the top-level # header (contains identity — anonymize)
+      if (trimLine.startsWith('# ') && !trimLine.startsWith('## ')) continue;
+
+      // Detect ## section headers
+      const headerMatch = trimLine.match(/^#{2,}\s+(.+)$/);
+      if (headerMatch) {
+        currentSection = headerMatch[1].trim();
+        continue;
+      }
+
+      // Skip metadata lines
+      if (trimLine.startsWith('*') && trimLine.endsWith('*')) continue; // Italic disclaimers
+      if (trimLine === '---') continue; // Horizontal rules
+      if (!trimLine) continue; // Empty lines
+
+      // Accumulate content under current section
+      if (currentSection) {
+        const existing = sections[currentSection] || '';
+        sections[currentSection] = existing ? `${existing}; ${trimLine}` : trimLine;
       }
     }
 
-    return anonymized;
+    return sections;
+  }
+
+  /**
+   * Handle legacy JSON summaries.
+   */
+  private anonymizeJsonSummary(json: string): string {
+    try {
+      const parsed = JSON.parse(json);
+      const parts: string[] = [];
+
+      const industry = parsed.industry || parsed.focus;
+      if (industry) {
+        const str = Array.isArray(industry) ? industry.slice(0, 3).join(', ') : industry;
+        if (str.length > 2) parts.push(`Industry: ${str}`);
+      }
+      if (parsed.stage) parts.push(`Stage: ${parsed.stage}`);
+
+      const goal = parsed.goal || parsed.objective;
+      if (goal && goal.length > 5) {
+        parts.push(`Looking for: ${goal.length > 80 ? goal.substring(0, 80) + '...' : goal}`);
+      }
+      if (parsed.offerings && parsed.offerings.length > 10) {
+        parts.push(`Offers: ${parsed.offerings.substring(0, 80)}`);
+      }
+
+      return parts.length > 0 ? parts.join(' · ') : 'A professional seeking meaningful connections.';
+    } catch {
+      return 'A professional seeking meaningful connections.';
+    }
+  }
+
+  /**
+   * Fallback: clean raw text when markdown parsing yields nothing.
+   */
+  private cleanRawText(text: string): string {
+    let cleaned = text
+      .replace(/\\n/g, ' ')
+      .replace(/\n/g, ' ')
+      .replace(/#+\s*/g, '')
+      .replace(/\*[^*]+\*/g, '') // Remove italic text
+      .replace(/---/g, '')
+      .replace(/Not specified/gi, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    cleaned = this.removePII(cleaned);
+
+    if (cleaned.length > 300) {
+      const truncated = cleaned.substring(0, 297);
+      const lastPeriod = truncated.lastIndexOf('.');
+      cleaned = lastPeriod > 200 ? truncated.substring(0, lastPeriod + 1) : truncated + '...';
+    }
+
+    return cleaned || 'A professional seeking meaningful connections.';
+  }
+
+  /**
+   * Remove personally identifiable information from text.
+   */
+  private removePII(text: string): string {
+    return text
+      .replace(/\b[a-z]+[._][a-z]+\d*\b/gi, '') // username patterns
+      .replace(/\bfor\s+[A-Z][a-z]+(\s+[A-Z][a-z]+)?\b/g, '') // "for John Smith"
+      .replace(/\b(a |an |the )?[A-Z][a-zA-Z]+\s+(Inc|LLC|Ltd|Corp|Company|Co)\.?\b/gi, 'a company') // company names
+      .replace(/\$[\d,]+(\.\d{2})?(\s*(million|billion|M|B|K))?/gi, 'significant funding') // dollar amounts
+      .replace(/\b\d{10,}\b/g, '') // long numbers
+      .replace(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g, '') // emails
+      .replace(/\[Name\]/gi, '')
+      .replace(/\[Company\]/gi, '')
+      .replace(/\s+/g, ' ')
+      .trim();
   }
 }
