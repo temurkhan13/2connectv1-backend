@@ -7,7 +7,7 @@
 
 import { Injectable, Logger, InternalServerErrorException } from '@nestjs/common';
 import axios from 'axios';
-import * as FormData from 'form-data';
+import FormData = require('form-data');
 
 @Injectable()
 export class VoiceService {
