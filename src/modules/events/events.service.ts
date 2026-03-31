@@ -209,12 +209,13 @@ export class EventsService {
     // Generate badges for existing matches who are also at this event
     const badgeCount = await this.generateBadges(eventId, userId, dto.goals);
 
-    this.logger.log(`User ${userId} joined event ${event.name} with goals: ${dto.goals.join(', ')}. ${badgeCount} badges created.`);
+    const eventName = event.getDataValue('name') || event.name || 'the event';
+    this.logger.log(`User ${userId} joined event ${eventName} with goals: ${dto.goals.join(', ')}. ${badgeCount} badges created.`);
 
     // Send push notification
     this.notificationService.sendToUser(
       userId,
-      `Joined ${event.name}`,
+      `Joined ${eventName}`,
       badgeCount > 0
         ? `You have ${badgeCount} connection${badgeCount > 1 ? 's' : ''} at this event!`
         : 'We\'ll notify you when connections are found.',
@@ -225,8 +226,8 @@ export class EventsService {
       participant,
       badges_created: badgeCount,
       message: badgeCount > 0
-        ? `You have ${badgeCount} connections at ${event.name}!`
-        : `You've joined ${event.name}. We'll match you with other attendees.`,
+        ? `You have ${badgeCount} connections at ${eventName}!`
+        : `You've joined ${eventName}. We'll match you with other attendees.`,
     };
   }
 
