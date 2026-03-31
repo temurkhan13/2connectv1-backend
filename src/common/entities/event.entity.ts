@@ -14,7 +14,7 @@ import { User } from './user.entity';
 @Table({ tableName: 'events', timestamps: true, underscored: true })
 export class Event extends Model {
   @Column({ type: DataType.UUID, defaultValue: DataType.UUIDV4, primaryKey: true })
-  id: string;
+  declare id: string;
 
   @Column({ type: DataType.STRING(255), allowNull: false })
   name: string;
