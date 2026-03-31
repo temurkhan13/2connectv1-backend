@@ -11,6 +11,7 @@ import { AuthModule } from 'src/modules/auth/auth.module';
 import { DatabaseModule } from 'src/config/database.module';
 import { MatchesModule } from 'src/modules/matches/matches.module';
 import { ChatModule } from 'src/modules/chat/chat.module';
+import { EventsModule } from 'src/modules/events/events.module';
 import { AiConversationsModule } from 'src/modules/ai-conversations/ai-conversations.module';
 import { OnBoardingModule } from 'src/modules/onboarding/onboarding.module';
 import { DashboardModule } from 'src/modules/dashboard/dashboard.module';
@@ -53,6 +54,7 @@ import { AnalyticsModule } from 'src/modules/analytics/analytics.module';
     AuthModule,
     MatchesModule,
     ChatModule,
+    EventsModule,
     AiConversationsModule,
     OnBoardingModule,
     DashboardModule,
