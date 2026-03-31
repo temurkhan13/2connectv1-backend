@@ -150,10 +150,10 @@ export class EventsService {
     const event = await this.eventModel.findByPk(eventId);
     if (!event) throw new NotFoundException('Event not found');
 
-    // Validate access code
-    // Note: with underscored:true, DB column access_code maps to JS accessCode
-    const eventCode = (event as any).access_code || (event as any).accessCode || '';
-    if (eventCode.toLowerCase() !== dto.code.toLowerCase()) {
+    // Validate access code — use getDataValue to get raw DB column value
+    const eventCode = event.getDataValue('access_code') || event.access_code || '';
+    this.logger.log(`[joinEvent] access_code from DB: "${eventCode}", user sent: "${dto.code}"`);
+    if (!eventCode || eventCode.toLowerCase() !== dto.code.toLowerCase()) {
       throw new BadRequestException('Invalid event access code');
     }
 
