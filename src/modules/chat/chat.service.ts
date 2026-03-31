@@ -55,8 +55,8 @@ export class ChatService {
       },
       order: [['last_message_at', 'DESC NULLS LAST'], ['created_at', 'DESC']],
       include: [
-        { model: User, as: 'user1', attributes: ['id', 'firstName', 'lastName', 'profilePhoto'] },
-        { model: User, as: 'user2', attributes: ['id', 'firstName', 'lastName', 'profilePhoto'] },
+        { model: User, as: 'user1', attributes: ['id', 'first_name', 'last_name', 'avatar'] },
+        { model: User, as: 'user2', attributes: ['id', 'first_name', 'last_name', 'avatar'] },
       ],
     });
 
@@ -84,9 +84,9 @@ export class ChatService {
           otherUser: otherUser
             ? {
                 id: otherUser.id,
-                firstName: otherUser.firstName,
-                lastName: otherUser.lastName,
-                profilePhoto: otherUser.profilePhoto,
+                firstName: otherUser.first_name,
+                lastName: otherUser.last_name,
+                avatar: otherUser.avatar,
               }
             : null,
           lastMessage: lastMessage

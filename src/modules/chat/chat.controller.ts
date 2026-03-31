@@ -26,7 +26,7 @@ export class ChatController {
    */
   @Get('conversations')
   async getConversations(@Req() req: any) {
-    const userId = req.user.id || req.user.sub;
+    const userId = req.user.id;
     const conversations = await this.chatService.getUserConversations(userId);
     return { success: true, data: conversations };
   }
@@ -40,7 +40,7 @@ export class ChatController {
     @Req() req: any,
     @Body() body: { otherUserId: string; matchId?: string },
   ) {
-    const userId = req.user.id || req.user.sub;
+    const userId = req.user.id;
     const conversation = await this.chatService.getOrCreateConversation(
       userId,
       body.otherUserId,
@@ -60,7 +60,7 @@ export class ChatController {
     @Query('limit') limit?: string,
     @Query('before') before?: string,
   ) {
-    const userId = req.user.id || req.user.sub;
+    const userId = req.user.id;
     const result = await this.chatService.getMessages(
       conversationId,
       userId,
@@ -80,7 +80,7 @@ export class ChatController {
     @Param('id') conversationId: string,
     @Body() body: { content: string; messageType?: 'text' | 'image' | 'system' },
   ) {
-    const userId = req.user.id || req.user.sub;
+    const userId = req.user.id;
     const message = await this.chatService.sendMessage(
       conversationId,
       userId,
@@ -96,7 +96,7 @@ export class ChatController {
    */
   @Patch('conversations/:id/read')
   async markAsRead(@Req() req: any, @Param('id') conversationId: string) {
-    const userId = req.user.id || req.user.sub;
+    const userId = req.user.id;
     const count = await this.chatService.markAsRead(conversationId, userId);
     return { success: true, data: { markedRead: count } };
   }
@@ -107,7 +107,7 @@ export class ChatController {
    */
   @Get('unread-count')
   async getUnreadCount(@Req() req: any) {
-    const userId = req.user.id || req.user.sub;
+    const userId = req.user.id;
     const count = await this.chatService.getTotalUnreadCount(userId);
     return { success: true, data: { unreadCount: count } };
   }
