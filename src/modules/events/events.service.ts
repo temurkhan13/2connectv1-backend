@@ -97,10 +97,10 @@ export class EventsService {
     });
 
     // Attach participant counts
-    const result = [];
+    const result: any[] = [];
     for (const event of events) {
       const count = await this.participantModel.count({ where: { event_id: event.id } });
-      result.push({ ...event.toJSON(), participant_count: count });
+      result.push({ ...(event.toJSON() as any), participant_count: count });
     }
     return result;
   }

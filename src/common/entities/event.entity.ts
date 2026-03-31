@@ -75,7 +75,7 @@ export class Event extends Model {
 @Table({ tableName: 'event_participants', timestamps: false, underscored: true })
 export class EventParticipant extends Model {
   @Column({ type: DataType.UUID, defaultValue: DataType.UUIDV4, primaryKey: true })
-  id: string;
+  declare id: string;
 
   @ForeignKey(() => User)
   @Column({ type: DataType.UUID, allowNull: false })
@@ -101,7 +101,7 @@ export class EventParticipant extends Model {
 @Table({ tableName: 'event_match_badges', timestamps: false, underscored: true })
 export class EventMatchBadge extends Model {
   @Column({ type: DataType.UUID, defaultValue: DataType.UUIDV4, primaryKey: true })
-  id: string;
+  declare id: string;
 
   @ForeignKey(() => Event)
   @Column({ type: DataType.UUID, allowNull: false })
