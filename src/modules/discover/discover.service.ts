@@ -157,7 +157,7 @@ export class DiscoverService {
         freshness_score: summary?.freshness_score || 0.5,
         member_since: user.created_at,
         last_active_at: summary?.last_active_at || user.updated_at,
-        compatibility_hint: realMatchScores[user.id] || null,
+        compatibility_hint: realMatchScores[user.id] ?? undefined,
       };
     });
 
