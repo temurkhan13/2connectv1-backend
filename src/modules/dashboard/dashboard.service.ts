@@ -16,6 +16,7 @@ import { IceBreaker } from 'src/common/entities/ice-breaker.entity';
 import { MatchFeedback } from 'src/common/entities/match-feedback.entity';
 import { UserPreferencesLearned } from 'src/common/entities/user-preferences-learned.entity';
 import { MailService } from 'src/modules/mail/mail.service';
+import { NotificationService } from 'src/modules/notifications/notification.service';
 import { DailyAnalyticsService } from 'src/modules/daily-analytics/daily-analytics.service';
 import {
   MatchStatusEnum,
@@ -85,6 +86,7 @@ export class DashboardService {
 
     //@InjectModel(AiConversation)
     private readonly mailService: MailService,
+    private readonly notificationService: NotificationService,
     private readonly dailyAnalyticsService: DailyAnalyticsService,
     private readonly aiService: AIServiceFacade,
     // Transaction manager
@@ -549,7 +551,25 @@ export class DashboardService {
         }
       }
 
-      // 6) Return compact shape
+      // 6) Send push notification when both sides approved
+      if (finalStatus === MatchStatusEnum.APPROVED) {
+        // Notify the other user that the match is mutually accepted
+        const thisUser: any = await this.userModel.findOne({
+          where: { id: thisUserId },
+          attributes: ['first_name'],
+          transaction: tx,
+        });
+        const firstName = thisUser?.first_name || 'Someone';
+
+        this.notificationService.sendToUser(
+          otherUserId,
+          'New Connection! 🤝',
+          `${firstName} accepted your connection. Start a conversation!`,
+          { type: 'match_accepted', match_id: matchId, screen: 'chat' },
+        ).catch(err => this.logger.error(`Failed to send match_accepted push: ${err}`));
+      }
+
+      // 7) Return compact shape
       return {
         id: updated.id,
         status: finalStatus,

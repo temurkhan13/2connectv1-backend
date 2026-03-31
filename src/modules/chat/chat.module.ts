@@ -6,9 +6,13 @@ import { ChatConversation } from 'src/common/entities/chat-conversation.entity';
 import { ChatMessage } from 'src/common/entities/chat-message.entity';
 import { BlockedUser } from 'src/common/entities/blocked-user.entity';
 import { ReportedUser } from 'src/common/entities/reported-user.entity';
+import { NotificationModule } from 'src/modules/notifications/notification.module';
 
 @Module({
-  imports: [SequelizeModule.forFeature([ChatConversation, ChatMessage, BlockedUser, ReportedUser])],
+  imports: [
+    SequelizeModule.forFeature([ChatConversation, ChatMessage, BlockedUser, ReportedUser]),
+    NotificationModule,
+  ],
   controllers: [ChatController],
   providers: [ChatService],
   exports: [ChatService],

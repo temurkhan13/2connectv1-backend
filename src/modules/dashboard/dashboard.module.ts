@@ -11,6 +11,7 @@ import { IceBreaker } from 'src/common/entities/ice-breaker.entity';
 import { MatchFeedback } from 'src/common/entities/match-feedback.entity';
 import { UserPreferencesLearned } from 'src/common/entities/user-preferences-learned.entity';
 import { MailModule } from 'src/modules/mail/mail.module';
+import { NotificationModule } from 'src/modules/notifications/notification.module';
 import { DailyAnalyticsService } from 'src/modules/daily-analytics/daily-analytics.service';
 
 @Module({
@@ -26,6 +27,7 @@ import { DailyAnalyticsService } from 'src/modules/daily-analytics/daily-analyti
       UserPreferencesLearned,
     ]),
     MailModule,
+    NotificationModule,
   ],
   controllers: [DashboardController],
   providers: [DashboardService, DailyAnalyticsService],

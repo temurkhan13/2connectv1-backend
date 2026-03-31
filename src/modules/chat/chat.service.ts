@@ -7,6 +7,7 @@ import { ChatMessage } from 'src/common/entities/chat-message.entity';
 import { BlockedUser } from 'src/common/entities/blocked-user.entity';
 import { ReportedUser } from 'src/common/entities/reported-user.entity';
 import { User } from 'src/common/entities/user.entity';
+import { NotificationService } from 'src/modules/notifications/notification.service';
 
 @Injectable()
 export class ChatService {
@@ -22,6 +23,7 @@ export class ChatService {
     @InjectModel(ReportedUser)
     private reportedUserModel: typeof ReportedUser,
     private sequelize: Sequelize,
+    private readonly notificationService: NotificationService,
   ) {}
 
   /**
@@ -211,7 +213,44 @@ export class ChatService {
 
     this.logger.log(`Message sent in conversation ${conversationId} by ${senderId}`);
 
+    // Send push notification to the other user (fire-and-forget)
+    const recipientId = conversation.user1_id === senderId ? conversation.user2_id : conversation.user1_id;
+    this.sendMessagePush(senderId, recipientId, content, conversationId)
+      .catch(err => this.logger.error(`Failed to send chat push: ${err}`));
+
     return message;
+  }
+
+  /**
+   * Send push notification for a new chat message.
+   */
+  private async sendMessagePush(
+    senderId: string,
+    recipientId: string,
+    content: string,
+    conversationId: string,
+  ): Promise<void> {
+    // Get sender name for notification
+    const [senderRows] = await this.sequelize.query(
+      `SELECT first_name FROM users WHERE id = :senderId LIMIT 1`,
+      { replacements: { senderId } },
+    );
+    const senderName = (senderRows as any[])[0]?.first_name || 'Someone';
+
+    // Truncate message for notification body
+    const preview = content.length > 80 ? content.substring(0, 80) + '...' : content;
+
+    await this.notificationService.sendToUser(
+      recipientId,
+      `${senderName}`,
+      preview,
+      {
+        type: 'new_message',
+        conversation_id: conversationId,
+        sender_id: senderId,
+        screen: 'chat',
+      },
+    );
   }
 
   /**
