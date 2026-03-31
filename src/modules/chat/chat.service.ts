@@ -151,6 +151,9 @@ export class ChatService {
     senderId: string,
     content: string,
     messageType: 'text' | 'image' | 'system' = 'text',
+    attachmentUrl?: string,
+    attachmentName?: string,
+    attachmentSize?: number,
   ): Promise<ChatMessage> {
     // Verify sender is part of conversation
     const conversation = await this.conversationModel.findByPk(conversationId);
@@ -166,6 +169,9 @@ export class ChatService {
       sender_id: senderId,
       content,
       message_type: messageType,
+      attachment_url: attachmentUrl || null,
+      attachment_name: attachmentName || null,
+      attachment_size: attachmentSize || null,
     });
 
     // Update conversation's last_message_at

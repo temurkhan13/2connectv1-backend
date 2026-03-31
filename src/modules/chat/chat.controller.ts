@@ -78,7 +78,7 @@ export class ChatController {
   async sendMessage(
     @Req() req: any,
     @Param('id') conversationId: string,
-    @Body() body: { content: string; messageType?: 'text' | 'image' | 'system' },
+    @Body() body: { content: string; messageType?: 'text' | 'image' | 'system'; attachmentUrl?: string; attachmentName?: string; attachmentSize?: number },
   ) {
     const userId = req.user.id;
     const message = await this.chatService.sendMessage(
@@ -86,6 +86,9 @@ export class ChatController {
       userId,
       body.content,
       body.messageType || 'text',
+      body.attachmentUrl,
+      body.attachmentName,
+      body.attachmentSize,
     );
     return { success: true, data: message };
   }

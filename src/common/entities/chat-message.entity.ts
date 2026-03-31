@@ -56,6 +56,24 @@ export class ChatMessage extends Model {
   declare message_type: 'text' | 'image' | 'system';
 
   @Column({
+    type: DataType.TEXT,
+    allowNull: true,
+  })
+  declare attachment_url: string;
+
+  @Column({
+    type: DataType.TEXT,
+    allowNull: true,
+  })
+  declare attachment_name: string;
+
+  @Column({
+    type: DataType.INTEGER,
+    allowNull: true,
+  })
+  declare attachment_size: number;
+
+  @Column({
     type: DataType.DATE,
     allowNull: true,
   })
