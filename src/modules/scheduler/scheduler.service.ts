@@ -1,7 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
+import { InjectModel } from '@nestjs/sequelize';
+import { Op } from 'sequelize';
+import { Sequelize } from 'sequelize-typescript';
 import { MailService } from 'src/modules/mail/mail.service';
 import { AIServiceFacade } from 'src/integration/ai-service/ai-service.facade';
+import { UserSummaries } from 'src/common/entities/user-summaries.entity';
 import { EMAIL_JOB_EXECUTION_TIME_IN_DAYS, EMAIL_JOB_CRON_EXPRESSION } from 'src/common/constants';
 
 @Injectable()
@@ -10,6 +14,9 @@ export class SchedulerService {
   constructor(
     private readonly mailService: MailService,
     private readonly aiService: AIServiceFacade,
+    @InjectModel(UserSummaries)
+    private readonly userSummariesModel: typeof UserSummaries,
+    private readonly sequelize: Sequelize,
   ) {}
 
   /**
@@ -38,6 +45,39 @@ export class SchedulerService {
     } catch (error) {
       // Better message to match what this cron actually does
       this.logger.warn(`Failed to enqueue weekly match summary emails: ${error.message}`);
+    }
+  }
+
+  /**
+   * freshnessDecayCron
+   * ------------------
+   * Runs daily at 2:00 AM UTC.
+   * Decays freshness_score for all user summaries based on last_active_at.
+   * - Active today: 1.0
+   * - Active 1-3 days ago: 0.8
+   * - Active 4-7 days ago: 0.6
+   * - Active 1-2 weeks ago: 0.4
+   * - Active 2-4 weeks ago: 0.2
+   * - Inactive 4+ weeks: 0.1
+   */
+  @Cron('0 0 2 * * *', { timeZone: 'UTC' })
+  async freshnessDecayCron() {
+    this.logger.log('=+=+=+=+=+ FRESHNESS DECAY CRON =+=+=+=+=+');
+    try {
+      const [, updated] = await this.sequelize.query(`
+        UPDATE user_summaries SET freshness_score = CASE
+          WHEN last_active_at >= NOW() - INTERVAL '1 day' THEN 1.0
+          WHEN last_active_at >= NOW() - INTERVAL '3 days' THEN 0.8
+          WHEN last_active_at >= NOW() - INTERVAL '7 days' THEN 0.6
+          WHEN last_active_at >= NOW() - INTERVAL '14 days' THEN 0.4
+          WHEN last_active_at >= NOW() - INTERVAL '28 days' THEN 0.2
+          ELSE 0.1
+        END
+        WHERE freshness_score IS NOT NULL
+      `);
+      this.logger.log(`Freshness decay updated`);
+    } catch (error: any) {
+      this.logger.warn(`Freshness decay failed: ${error.message}`);
     }
   }
 

@@ -213,6 +213,12 @@ export class ChatService {
 
     this.logger.log(`Message sent in conversation ${conversationId} by ${senderId}`);
 
+    // Update user's last_active_at for freshness scoring (fire-and-forget)
+    this.sequelize.query(
+      `UPDATE user_summaries SET last_active_at = NOW() WHERE user_id = :userId`,
+      { replacements: { userId: senderId } },
+    ).catch(() => {});
+
     // Send push notification to the other user (fire-and-forget)
     const recipientId = conversation.user1_id === senderId ? conversation.user2_id : conversation.user1_id;
     this.sendMessagePush(senderId, recipientId, content, conversationId)
