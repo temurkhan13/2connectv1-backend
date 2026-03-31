@@ -531,6 +531,41 @@ export class OnBoardingService {
   }
 
   /**
+   * Forward resume to AI service for persona enrichment.
+   * The AI service stores it in Redis, where the persona pipeline picks it up.
+   */
+  async forwardResumeToAIService(
+    file: Express.Multer.File,
+    sessionId: string,
+    userId: string,
+  ): Promise<void> {
+    const aiServiceUrl = process.env.AI_SERVICE_URL;
+    if (!aiServiceUrl) {
+      this.logger.warn('AI_SERVICE_URL not set, skipping resume forwarding');
+      return;
+    }
+
+    const FormData = require('form-data');
+    const formData = new FormData();
+    formData.append('file', file.buffer, {
+      filename: file.originalname,
+      contentType: file.mimetype,
+    });
+    formData.append('session_id', sessionId);
+    formData.append('user_id', userId);
+
+    const response = await axios.post(
+      `${aiServiceUrl}/onboarding/upload-resume`,
+      formData,
+      {
+        headers: formData.getHeaders(),
+        timeout: 30000,
+      },
+    );
+    this.logger.log(`Forwarded resume to AI service for user ${userId}, session ${sessionId}`);
+  }
+
+  /**
    * submitOnboardingQuestion
    */
   async submitOnboardingQuestion(userId: string, dto: SubmitOnboardingQuestionDto) {

@@ -26,6 +26,7 @@ import {
   UseInterceptors,
   BadRequestException,
   UploadedFile,
+  Logger,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -45,6 +46,7 @@ const MAX_BYTES = 5 * 1024 * 1024;
 
 @Controller('onboarding')
 export class OnBoardingController {
+  private readonly logger = new Logger(OnBoardingController.name);
   constructor(private readonly onBoardingService: OnBoardingService) {}
 
   @Get('question')
@@ -71,13 +73,27 @@ export class OnBoardingController {
       },
     }),
   )
-  async uploadResume(@UploadedFile() file: Express.Multer.File, @Request() req: any) {
+  async uploadResume(
+    @UploadedFile() file: Express.Multer.File,
+    @Request() req: any,
+    @Body() body: { session_id?: string; user_id?: string },
+  ) {
     // Validate required file and size
     if (!file) throw new BadRequestException('File is required');
     if (file.size > MAX_BYTES) throw new BadRequestException('File too large (max 5 MB)');
 
     const userId = req?.user?.id as string | undefined;
+    const sessionId = body?.session_id;
+
+    // 1. Upload to S3 + save in user_documents (existing flow)
     const response = await this.onBoardingService.uploadResume(file, userId);
+
+    // 2. Forward to AI service so resume is available for persona generation
+    if (sessionId && userId) {
+      this.onBoardingService.forwardResumeToAIService(file, sessionId, userId)
+        .catch(err => this.logger.warn(`Failed to forward resume to AI service: ${err.message}`));
+    }
+
     return response;
   }
 
