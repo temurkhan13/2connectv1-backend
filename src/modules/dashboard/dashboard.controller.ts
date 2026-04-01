@@ -203,6 +203,16 @@ export class DashboardController {
     return response;
   }
 
+  @Get('insights')
+  @HttpCode(200)
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Top pending matches with tier, synergy preview, and score' })
+  async dashboardInsights(@Request() req) {
+    const userId = req.user.id;
+    return this.dashboardService.dashboardInsights(userId);
+  }
+
   /**
    * submitMatchFeedback endpoint
    * ----------------------------

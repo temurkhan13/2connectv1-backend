@@ -10,6 +10,7 @@ import { AiConversation } from 'src/common/entities/ai-conversation.entity';
 import { IceBreaker } from 'src/common/entities/ice-breaker.entity';
 import { MatchFeedback } from 'src/common/entities/match-feedback.entity';
 import { UserPreferencesLearned } from 'src/common/entities/user-preferences-learned.entity';
+import { UserEngagementScore } from 'src/common/entities/user-engagement-score.entity';
 import { MailModule } from 'src/modules/mail/mail.module';
 import { NotificationModule } from 'src/modules/notifications/notification.module';
 import { DailyAnalyticsService } from 'src/modules/daily-analytics/daily-analytics.service';
@@ -25,6 +26,7 @@ import { DailyAnalyticsService } from 'src/modules/daily-analytics/daily-analyti
       IceBreaker,
       MatchFeedback,
       UserPreferencesLearned,
+      UserEngagementScore,
     ]),
     MailModule,
     NotificationModule,

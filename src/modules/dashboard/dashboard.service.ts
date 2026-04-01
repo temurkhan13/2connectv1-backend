@@ -15,6 +15,7 @@ import { AiConversation } from 'src/common/entities/ai-conversation.entity';
 import { IceBreaker } from 'src/common/entities/ice-breaker.entity';
 import { MatchFeedback } from 'src/common/entities/match-feedback.entity';
 import { UserPreferencesLearned } from 'src/common/entities/user-preferences-learned.entity';
+import { UserEngagementScore } from 'src/common/entities/user-engagement-score.entity';
 import { MailService } from 'src/modules/mail/mail.service';
 import { NotificationService } from 'src/modules/notifications/notification.service';
 import { DailyAnalyticsService } from 'src/modules/daily-analytics/daily-analytics.service';
@@ -35,12 +36,25 @@ import { AIServiceFacade } from 'src/integration/ai-service/ai-service.facade';
 import { UserFeedbackRequest } from 'src/integration/ai-service/types/requests.type';
 
 const DASHBOARD_ACTIVITY_EVENTS = [
-  // Only these types are shown on the dashboard agent activity
   UserActivityEventsEnum.AI_SUMMARY_APPROVED,
   UserActivityEventsEnum.NEW_MATCH_FOUND,
   UserActivityEventsEnum.NEW_MATCHES_FOUND,
   UserActivityEventsEnum.AI_TO_AI_CONVERSATION_INITIATED,
+  UserActivityEventsEnum.USER_TO_USER_CONVERSATION_INITIATED,
+  UserActivityEventsEnum.ONBOARDING_COMPLETED,
+  UserActivityEventsEnum.UPDATE_PROFILE,
 ] as const;
+
+// Human-friendly labels for activity feed display
+const ACTIVITY_LABELS: Record<string, string> = {
+  [UserActivityEventsEnum.AI_SUMMARY_APPROVED]: 'Persona Updated',
+  [UserActivityEventsEnum.NEW_MATCH_FOUND]: 'New Match Found',
+  [UserActivityEventsEnum.NEW_MATCHES_FOUND]: 'New Matches Found',
+  [UserActivityEventsEnum.AI_TO_AI_CONVERSATION_INITIATED]: 'AI Screening Started',
+  [UserActivityEventsEnum.USER_TO_USER_CONVERSATION_INITIATED]: 'Conversation Started',
+  [UserActivityEventsEnum.ONBOARDING_COMPLETED]: 'Onboarding Completed',
+  [UserActivityEventsEnum.UPDATE_PROFILE]: 'Profile Updated',
+};
 
 type RecentActivityItem = {
   id: string;
@@ -83,6 +97,9 @@ export class DashboardService {
 
     @InjectModel(UserPreferencesLearned)
     private readonly userPreferencesLearnedModel: typeof UserPreferencesLearned,
+
+    @InjectModel(UserEngagementScore)
+    private readonly userEngagementScoreModel: typeof UserEngagementScore,
 
     //@InjectModel(AiConversation)
     private readonly mailService: MailService,
@@ -631,6 +648,51 @@ export class DashboardService {
           ),
           'high_compatibility',
         ],
+
+        // pending_review: matches where this user hasn't decided yet
+        [
+          this.sequelize.fn(
+            'SUM',
+            this.sequelize.literal(
+              `CASE WHEN (
+                ("Match"."user_a_id" = ${uid} AND ("Match"."user_a_decision" IS NULL OR "Match"."user_a_decision" = 'pending'))
+                OR
+                ("Match"."user_b_id" = ${uid} AND ("Match"."user_b_decision" IS NULL OR "Match"."user_b_decision" = 'pending'))
+              ) AND "Match"."status" = 'pending' THEN 1 ELSE 0 END`,
+            ),
+          ),
+          'pending_review',
+        ],
+
+        // match tier breakdown
+        [
+          this.sequelize.fn(
+            'SUM',
+            this.sequelize.literal(`CASE WHEN "Match"."match_tier" = 'perfect' THEN 1 ELSE 0 END`),
+          ),
+          'tier_perfect',
+        ],
+        [
+          this.sequelize.fn(
+            'SUM',
+            this.sequelize.literal(`CASE WHEN "Match"."match_tier" = 'strong' THEN 1 ELSE 0 END`),
+          ),
+          'tier_strong',
+        ],
+        [
+          this.sequelize.fn(
+            'SUM',
+            this.sequelize.literal(`CASE WHEN "Match"."match_tier" = 'worth_exploring' THEN 1 ELSE 0 END`),
+          ),
+          'tier_worth_exploring',
+        ],
+        [
+          this.sequelize.fn(
+            'SUM',
+            this.sequelize.literal(`CASE WHEN "Match"."match_tier" = 'low' OR "Match"."match_tier" IS NULL THEN 1 ELSE 0 END`),
+          ),
+          'tier_low',
+        ],
       ],
       raw: true, // get a flat object
       nest: false, // not nesting
@@ -642,6 +704,13 @@ export class DashboardService {
       approved_matches: Number(row[0]?.approved_matches ?? 0),
       conversations: Number(row[0]?.conversations ?? 0),
       high_compatibility: Number(row[0]?.high_compatibility ?? 0),
+      pending_review: Number(row[0]?.pending_review ?? 0),
+      match_tier_breakdown: {
+        perfect: Number(row[0]?.tier_perfect ?? 0),
+        strong: Number(row[0]?.tier_strong ?? 0),
+        worth_exploring: Number(row[0]?.tier_worth_exploring ?? 0),
+        low: Number(row[0]?.tier_low ?? 0),
+      },
     };
   }
 
@@ -734,6 +803,18 @@ export class DashboardService {
     const pct = (num: number, den: number) => (den > 0 ? (num / den) * 100 : 0);
     const round2 = (n: number) => Math.round(n * 100) / 100;
 
+    // Fetch engagement data (already computed hourly by analytics cron)
+    let engagement: any = null;
+    try {
+      engagement = await this.userEngagementScoreModel.findOne({
+        where: { user_id: userId },
+        attributes: ['engagement_score', 'activity_level', 'days_since_last_activity'],
+        raw: true,
+      });
+    } catch (err) {
+      this.logger.warn(`Failed to fetch engagement score: ${err.message}`);
+    }
+
     // Compute 6D metrics
     return {
       total_matches: totalUserMatches,
@@ -743,7 +824,77 @@ export class DashboardService {
       response_rate: round2(pct(decidedCount, totalUserMatches)),
       // connection_rate: % of approved matches that led to conversations
       connection_rate: round2(pct(connectedCount, approvedCount)),
+      // engagement data from hourly-computed scores
+      engagement_score: Number(engagement?.engagement_score ?? 0),
+      activity_level: engagement?.activity_level ?? 'low',
+      days_since_last_activity: engagement?.days_since_last_activity ?? null,
     };
+  }
+
+  /**
+   * dashboardInsights
+   * -----------------
+   * Returns top 3 pending matches with tier, synergy preview, and score.
+   * Lightweight — no AI calls, uses cached data only.
+   */
+  async dashboardInsights(userId: string) {
+    const uid = this.sequelize.escape(userId);
+
+    const matches: any[] = await this.matchModel.findAll({
+      where: {
+        [Op.or]: [
+          {
+            user_a_id: userId,
+            [Op.or]: [{ user_a_decision: null }, { user_a_decision: 'pending' }],
+          },
+          {
+            user_b_id: userId,
+            [Op.or]: [{ user_b_decision: null }, { user_b_decision: 'pending' }],
+          },
+        ],
+        status: 'pending',
+      },
+      attributes: [
+        'id',
+        'match_tier',
+        'synergy_areas',
+        'user_a_id',
+        'user_b_id',
+        'user_a_persona_compatibility_score',
+        'user_b_persona_compatibility_score',
+        'user_a_designation',
+        'user_b_designation',
+        'created_at',
+      ],
+      include: [
+        { model: User, as: 'userA', attributes: ['id', 'first_name', 'last_name'] },
+        { model: User, as: 'userB', attributes: ['id', 'first_name', 'last_name'] },
+      ],
+      order: [
+        [this.sequelize.literal(`CASE WHEN "Match"."match_tier" = 'perfect' THEN 1 WHEN "Match"."match_tier" = 'strong' THEN 2 WHEN "Match"."match_tier" = 'worth_exploring' THEN 3 ELSE 4 END`), 'ASC'],
+        ['created_at', 'DESC'],
+      ],
+      limit: 3,
+    });
+
+    return matches.map((m: any) => {
+      const isA = m.user_a_id === userId;
+      const otherUser = isA ? m.userB : m.userA;
+      const score = isA ? m.user_a_persona_compatibility_score : m.user_b_persona_compatibility_score;
+      const designation = isA ? m.user_b_designation : m.user_a_designation;
+
+      return {
+        match_id: m.id,
+        match_tier: m.match_tier || 'low',
+        score: score ?? 0,
+        synergy_preview: m.synergy_areas?.[0] || null,
+        other_user: {
+          name: otherUser ? `${otherUser.first_name} ${otherUser.last_name}` : 'Unknown',
+          designation: designation || null,
+        },
+        created_at: m.created_at,
+      };
+    });
   }
 
   /**
@@ -859,9 +1010,9 @@ export class DashboardService {
     const pageSize = Math.max(1, Math.min(100, Number.isFinite(limit as any) ? Number(limit) : 10));
     const offset = (currentPage - 1) * pageSize;
 
-    // 1) Rolling 7-day window (fixed from 7 days)
+    // 1) Rolling 30-day window
     const end = new Date();
-    const start = new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const start = new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
 
     // 2) Filter by user, allowed events, and time window
     const { rows, count } = await this.userActivityLogModel.findAndCountAll({
@@ -878,10 +1029,14 @@ export class DashboardService {
       nest: true,
     });
 
-    // 3) Shape + pagination meta
+    // 3) Shape + pagination meta — add human-readable label
     const totalPages = Math.max(1, Math.ceil(count / pageSize));
+    const items = (rows as RecentActivityItem[]).map(item => ({
+      ...item,
+      label: ACTIVITY_LABELS[item.event_type] || item.event_type,
+    }));
     return {
-      items: rows as RecentActivityItem[],
+      items,
       page: currentPage,
       limit: pageSize,
       total: count,
