@@ -1928,6 +1928,8 @@ export class DashboardService {
       const compatibilityScore = match.user_a_persona_compatibility_score
         ? match.user_a_persona_compatibility_score
         : 50;
+      // Derive tier from actual score to prevent tier/score contradiction
+      const derivedTier = this.computeMatchTier(compatibilityScore);
       return {
         match_id: matchId,
         explanation: match.explanation.summary,
@@ -1936,7 +1938,7 @@ export class DashboardService {
         friction_points: match.friction_points || [],
         talking_points: match.talking_points || [],
         score_breakdown: match.score_breakdown || null,
-        match_tier: match.match_tier || 'worth_exploring',
+        match_tier: derivedTier,
         generated_at: match.explanation.generated_at || new Date().toISOString(),
         cached: true,
       };
@@ -1973,6 +1975,8 @@ export class DashboardService {
     );
 
     const generatedAt = new Date().toISOString();
+    // Derive tier from stored score for consistency
+    const derivedTier = this.computeMatchTier(storedScore);
     return {
       match_id: matchId,
       explanation: aiResponse.summary,
@@ -1981,7 +1985,7 @@ export class DashboardService {
       friction_points: aiResponse.friction_points,
       talking_points: aiResponse.talking_points,
       score_breakdown: aiResponse.score_breakdown || null,
-      match_tier: aiResponse.match_tier,
+      match_tier: derivedTier,
       generated_at: generatedAt,
       cached: false,
     };
