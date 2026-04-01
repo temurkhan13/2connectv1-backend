@@ -143,7 +143,12 @@ export class DiscoverService {
 
     // Look up real match scores between current user and all discovered profiles
     const profileIds = rows.map((u: any) => u.id);
-    const realMatchScores = await this.getRealMatchScores(userId, profileIds);
+    let realMatchScores: Record<string, number> = {};
+    try {
+      realMatchScores = await this.getRealMatchScores(userId, profileIds);
+    } catch (err) {
+      this.logger.warn(`Failed to fetch match scores, showing profiles without scores: ${err.message}`);
+    }
 
     // Transform to anonymous profiles with real match scores
     const profiles: AnonymousProfileDto[] = rows.map((user: any) => {
@@ -592,7 +597,7 @@ export class DiscoverService {
     const [rows] = await this.sequelize.query(`
       SELECT
         CASE WHEN user_a_id = :userId THEN user_b_id ELSE user_a_id END as other_id,
-        score
+        CASE WHEN user_a_id = :userId THEN user_a_persona_compatibility_score ELSE user_b_persona_compatibility_score END as score
       FROM matches
       WHERE (user_a_id = :userId AND user_b_id IN (:otherIds))
          OR (user_b_id = :userId AND user_a_id IN (:otherIds))
