@@ -622,6 +622,18 @@ export class DashboardController {
     return this.dashboardService.getAdminUserList();
   }
 
+  @Get('admin/user-sessions')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Get user session analytics with device/location data (Admin)' })
+  @ApiQuery({ name: 'platform', required: false, description: 'Filter by platform: web, mobile-app, mobile-browser' })
+  @ApiQuery({ name: 'days', required: false, description: 'Number of days to look back (default: 30)' })
+  async getAdminUserSessions(
+    @Query('platform') platform?: string,
+    @Query('days') days?: string,
+  ) {
+    return this.dashboardService.getAdminUserSessions(platform, Number(days) || 30);
+  }
+
   /**
    * GET /dashboard/admin/wiring-audit
    * ---------------------------------

@@ -2338,6 +2338,115 @@ export class DashboardService {
   }
 
   /**
+   * getAdminUserSessions
+   * --------------------
+   * Returns user session analytics with device, location, and platform data.
+   * Aggregates activity logs per user with metadata extracted from request headers.
+   */
+  async getAdminUserSessions(platform?: string, days: number = 30) {
+    this.logger.log(`----- GET ADMIN USER SESSIONS -----`);
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    // Get all activity logs with metadata in the time window
+    const logs: any[] = await this.userActivityLogModel.findAll({
+      where: {
+        event_time: { [Op.gte]: since },
+        ...(platform ? {
+          metadata: { [Op.contains]: { platform } },
+        } : {}),
+      },
+      attributes: ['user_id', 'event_type', 'event_time', 'metadata', 'created_at'],
+      include: [{
+        model: User,
+        as: 'user',
+        attributes: ['first_name', 'last_name', 'email', 'onboarding_status', 'is_test', 'created_at'],
+      }],
+      order: [['event_time', 'DESC']],
+      raw: true,
+      nest: true,
+    });
+
+    // Aggregate per user
+    const userMap = new Map<string, any>();
+
+    for (const log of logs) {
+      const uid = log.user_id;
+      if (!userMap.has(uid)) {
+        userMap.set(uid, {
+          user_id: uid,
+          name: log.user ? `${log.user.first_name || ''} ${log.user.last_name || ''}`.trim() : 'Unknown',
+          email: log.user?.email || null,
+          is_test: log.user?.is_test || false,
+          onboarding_status: log.user?.onboarding_status || null,
+          signed_up: log.user?.created_at || null,
+          // Device info — taken from most recent log with metadata
+          platform: null,
+          device: null,
+          os: null,
+          browser: null,
+          ip: null,
+          timezone: null,
+          language: null,
+          screen: null,
+          app_version: null,
+          network: null,
+          // Aggregates
+          last_active: log.event_time,
+          session_count: 0,
+          total_events: 0,
+          events: {} as Record<string, number>,
+        });
+      }
+
+      const entry = userMap.get(uid);
+      entry.total_events++;
+
+      // Count event types
+      entry.events[log.event_type] = (entry.events[log.event_type] || 0) + 1;
+
+      // Count sign-ins as sessions
+      if (log.event_type === 'Signed In' || log.event_type === 'Signed Up') {
+        entry.session_count++;
+      }
+
+      // Extract device metadata from the most recent log that has it
+      if (log.metadata && !entry.platform) {
+        entry.platform = log.metadata.platform || null;
+        entry.device = log.metadata.device || null;
+        entry.os = log.metadata.os || null;
+        entry.browser = log.metadata.browser || null;
+        entry.ip = log.metadata.ip || null;
+        entry.timezone = log.metadata.timezone || null;
+        entry.language = log.metadata.language || null;
+        entry.screen = log.metadata.screen || null;
+        entry.app_version = log.metadata.app_version || null;
+        entry.network = log.metadata.network || null;
+      }
+    }
+
+    const sessions = Array.from(userMap.values());
+
+    // Summary stats
+    const summary = {
+      total_users: sessions.length,
+      web_users: sessions.filter(s => s.platform === 'web').length,
+      mobile_app_users: sessions.filter(s => s.platform === 'mobile-app').length,
+      mobile_browser_users: sessions.filter(s => s.platform === 'mobile-browser').length,
+      unknown_platform: sessions.filter(s => !s.platform).length,
+      test_users: sessions.filter(s => s.is_test).length,
+      real_users: sessions.filter(s => !s.is_test).length,
+      active_today: sessions.filter(s => {
+        const lastActive = new Date(s.last_active);
+        const today = new Date();
+        return lastActive.toDateString() === today.toDateString();
+      }).length,
+      onboarding_completed: sessions.filter(s => s.onboarding_status === 'completed').length,
+    };
+
+    return { sessions, summary };
+  }
+
+  /**
    * getWiringAudit
    * --------------
    * Returns truth-based health check for the latest completed user.

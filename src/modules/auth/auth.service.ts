@@ -411,7 +411,7 @@ export class AuthService {
    * Inputs: SigninDto.
    * Returns: { user, email_verification_code?, expires_at?, access_token? }.
    */
-  async signin(signinDto: SigninDto) {
+  async signin(signinDto: SigninDto, clientMetadata?: Record<string, any>) {
     this.logger.log(`----- SIGNIN -----`);
     this.logger.log({ email: signinDto.email });
     return this.sequelize.transaction(async (t: Transaction) => {
@@ -455,11 +455,12 @@ export class AuthService {
         { where: { id: user.id }, transaction: t },
       );
 
-      // 4) activity log
+      // 4) activity log with client metadata (device, platform, IP)
       await this.userActivityLogsService.insertActivityLog(
         UserActivityEventsEnum.SIGN_IN,
         user.id,
         t,
+        clientMetadata || undefined,
       );
       this.logger.log({ user_is_email_verified: user.is_email_verified });
 
@@ -524,7 +525,7 @@ export class AuthService {
    * Inputs: GoogleSigninDto { token }.
    * Returns: { user, access_token, googleData }.
    */
-  async googleSignIn(googleSignInDto: GoogleSigninDto) {
+  async googleSignIn(googleSignInDto: GoogleSigninDto, clientMetadata?: Record<string, any>) {
     this.logger.log(`----- GOOGLE SIGNIN -----`);
     const token = googleSignInDto.token?.trim();
     if (!token) throw new GoogleAuthException();
@@ -655,11 +656,12 @@ export class AuthService {
       // 2g) Issue token
       const access_token = this.generateToken(user);
 
-      // 3) activity log
+      // 3) activity log with client metadata
       await this.userActivityLogsService.insertActivityLog(
         UserActivityEventsEnum.SIGN_IN,
         user.id,
         t,
+        clientMetadata || undefined,
       );
 
       return {

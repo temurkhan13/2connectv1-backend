@@ -132,8 +132,8 @@ export class AuthController {
     description: RESPONSES.signinIncorrectCredentials.message,
     example: RESPONSES.signinIncorrectCredentials,
   })
-  async signIn(@Body() signinDto: SigninDto, @Res({ passthrough: true }) res: Response) {
-    const response = await this.authService.signin(signinDto);
+  async signIn(@Body() signinDto: SigninDto, @Request() req, @Res({ passthrough: true }) res: Response) {
+    const response = await this.authService.signin(signinDto, req.clientMetadata);
 
     if (response.access_token)
       res.cookie('access_token', response.access_token, {
@@ -160,9 +160,10 @@ export class AuthController {
   })
   async googleSignin(
     @Body() googleSigninDto: GoogleSigninDto,
+    @Request() req,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const response = await this.authService.googleSignIn(googleSigninDto);
+    const response = await this.authService.googleSignIn(googleSigninDto, req.clientMetadata);
     const {
       user,
       access_token,

@@ -45,18 +45,24 @@ export class UserActivityLogsService {
    * 2) Create a new log record with user_id, event_type, event_time, created_at.
    * 3) Persist using the provided transaction.
    */
-  async insertActivityLog(event: UserActivityEventsEnum, userId: string, transaction: Transaction) {
-    const tx = transaction; // use caller-provided transaction so this write commits/rolls back with the caller
-    const now = new Date(); // single timestamp for consistent fields
+  async insertActivityLog(
+    event: UserActivityEventsEnum,
+    userId: string,
+    transaction: Transaction,
+    metadata?: Record<string, any>,
+  ) {
+    const tx = transaction;
+    const now = new Date();
 
     await this.userActivityLogsModel.create(
       {
-        user_id: userId, // who performed the activity
-        event_type: event, // what happened
-        event_time: now, // when the event happened (business time)
-        created_at: now, // insert timestamp
+        user_id: userId,
+        event_type: event,
+        event_time: now,
+        created_at: now,
+        metadata: metadata || null,
       },
-      { transaction: tx }, // participate in the same transaction
+      { transaction: tx },
     );
   }
 }

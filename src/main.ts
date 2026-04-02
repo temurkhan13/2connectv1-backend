@@ -9,6 +9,7 @@ import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
 import { ResponseInterceptor } from 'src/common/interceptors/response.interceptor';
+import { RequestMetadataInterceptor } from 'src/common/interceptors/request-metadata.interceptor';
 import { AppModule } from 'src/app.module';
 import { LoggerService } from 'src/common/logger/logger.service';
 import { GlobalExceptionFilter } from 'src/common/filters/global-exception.filter';
@@ -95,7 +96,7 @@ async function bootstrap() {
     app.useGlobalFilters(new GlobalExceptionFilter(logger));
 
     // Wrap all responses in a consistent format
-    app.useGlobalInterceptors(new ResponseInterceptor());
+    app.useGlobalInterceptors(new RequestMetadataInterceptor(), new ResponseInterceptor());
 
     // Parse cookies (set a secret if you sign cookies)
     app.use(cookieParser(/* configService.get('COOKIE_SECRET') */));
