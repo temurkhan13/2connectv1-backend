@@ -634,6 +634,13 @@ export class DashboardController {
     return this.dashboardService.getAdminUserSessions(platform, Number(days) || 30);
   }
 
+  @Get('admin/match-analytics')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Match funnel metrics, per-user behavior, and phase status (Admin)' })
+  async getMatchAnalytics() {
+    return this.dashboardService.getMatchAnalytics();
+  }
+
   /**
    * GET /dashboard/admin/wiring-audit
    * ---------------------------------

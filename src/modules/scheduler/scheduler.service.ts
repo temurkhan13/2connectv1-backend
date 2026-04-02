@@ -81,6 +81,67 @@ export class SchedulerService {
     }
   }
 
+  /**
+   * Detect ignored matches — pending for 7+ days with no user action.
+   * Appends match_ignored event to analytics_events for tracking.
+   */
+  @Cron('0 0 5 * * *', { timeZone: 'UTC' })
+  async detectIgnoredMatches() {
+    this.logger.log('=+=+=+=+=+ DETECT IGNORED MATCHES CRON =+=+=+=+=+');
+    try {
+      const [rows] = await this.sequelize.query(`
+        INSERT INTO analytics_events (id, user_id, event_type, event_category, event_data, created_at)
+        SELECT
+          gen_random_uuid(),
+          CASE WHEN m.user_a_decision IS NULL OR m.user_a_decision = 'pending' THEN m.user_a_id ELSE m.user_b_id END,
+          'match_ignored',
+          'matching',
+          jsonb_build_object('match_id', m.id, 'days_pending', EXTRACT(DAY FROM NOW() - m.created_at)::int),
+          NOW()
+        FROM matches m
+        WHERE m.status = 'pending'
+        AND m.created_at < NOW() - INTERVAL '7 days'
+        AND m.id NOT IN (
+          SELECT (event_data->>'match_id')::uuid FROM analytics_events WHERE event_type = 'match_ignored'
+        )
+      `);
+      this.logger.log(`Detected ignored matches`);
+    } catch (error: any) {
+      this.logger.warn(`Detect ignored matches failed: ${error.message}`);
+    }
+  }
+
+  /**
+   * Detect ghosted matches — approved for 7+ days but no conversation started.
+   * Appends match_ghosted event to analytics_events for tracking.
+   */
+  @Cron('0 30 5 * * *', { timeZone: 'UTC' })
+  async detectGhostedMatches() {
+    this.logger.log('=+=+=+=+=+ DETECT GHOSTED MATCHES CRON =+=+=+=+=+');
+    try {
+      const [rows] = await this.sequelize.query(`
+        INSERT INTO analytics_events (id, user_id, event_type, event_category, event_data, created_at)
+        SELECT
+          gen_random_uuid(),
+          m.user_a_id,
+          'match_ghosted',
+          'matching',
+          jsonb_build_object('match_id', m.id, 'days_since_approval', EXTRACT(DAY FROM NOW() - m.updated_at)::int),
+          NOW()
+        FROM matches m
+        WHERE m.status = 'approved'
+        AND m.user_to_user_conversation = false
+        AND m.updated_at < NOW() - INTERVAL '7 days'
+        AND m.id NOT IN (
+          SELECT (event_data->>'match_id')::uuid FROM analytics_events WHERE event_type = 'match_ghosted'
+        )
+      `);
+      this.logger.log(`Detected ghosted matches`);
+    } catch (error: any) {
+      this.logger.warn(`Detect ghosted matches failed: ${error.message}`);
+    }
+  }
+
   @Cron('0 0 3 * * *', {
     // Once daily at 3:00 AM UTC (reduced from every 4 hours)
     // Inline matching handles new users immediately on onboarding.

@@ -2447,6 +2447,142 @@ export class DashboardService {
   }
 
   /**
+   * getMatchAnalytics
+   * -----------------
+   * Returns match funnel metrics, per-user behavior, and phase activation status.
+   * Used by admin dashboard Match Analytics tab.
+   */
+  async getMatchAnalytics() {
+    this.logger.log(`----- GET MATCH ANALYTICS -----`);
+
+    // Count completed users for phase activation
+    const userCountResult = await this.userModel.count({
+      where: { onboarding_status: 'completed' },
+    });
+    const userCount = Number(userCountResult);
+
+    // Funnel: total matches, per-status counts
+    const [funnelRows] = await this.sequelize.query(`
+      SELECT
+        COUNT(*) as total_matches,
+        SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
+        SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) as approved,
+        SUM(CASE WHEN status = 'declined' THEN 1 ELSE 0 END) as declined,
+        SUM(CASE WHEN user_to_user_conversation = true THEN 1 ELSE 0 END) as messaged,
+        SUM(CASE WHEN status = 'pending' AND created_at < NOW() - INTERVAL '14 days' THEN 1 ELSE 0 END) as stale_matches
+      FROM matches
+    `);
+    const funnel = (funnelRows as any[])[0] || {};
+
+    // Analytics events — match-related (if any exist)
+    let eventCounts: Record<string, number> = {};
+    try {
+      const [eventRows] = await this.sequelize.query(`
+        SELECT event_type, COUNT(*) as count
+        FROM analytics_events
+        WHERE event_type IN ('match_card_viewed', 'match_card_expanded', 'match_approved_with_time', 'match_declined_with_time', 'match_ignored', 'match_ghosted')
+        GROUP BY event_type
+      `);
+      for (const row of eventRows as any[]) {
+        eventCounts[row.event_type] = Number(row.count);
+      }
+    } catch {
+      // analytics_events table may not have data yet — that's fine
+    }
+
+    // Per-user match behavior
+    const [userRows] = await this.sequelize.query(`
+      SELECT
+        u.id as user_id,
+        u.first_name || ' ' || u.last_name as name,
+        u.email,
+        u.is_test,
+        COUNT(m.id) as total_matches,
+        SUM(CASE WHEN
+          (m.user_a_id = u.id AND m.user_a_decision = 'approved')
+          OR (m.user_b_id = u.id AND m.user_b_decision = 'approved')
+        THEN 1 ELSE 0 END) as approved,
+        SUM(CASE WHEN
+          (m.user_a_id = u.id AND m.user_a_decision = 'declined')
+          OR (m.user_b_id = u.id AND m.user_b_decision = 'declined')
+        THEN 1 ELSE 0 END) as passed,
+        SUM(CASE WHEN
+          (m.user_a_id = u.id AND (m.user_a_decision IS NULL OR m.user_a_decision = 'pending'))
+          OR (m.user_b_id = u.id AND (m.user_b_decision IS NULL OR m.user_b_decision = 'pending'))
+        THEN 1 ELSE 0 END) as pending,
+        SUM(CASE WHEN m.user_to_user_conversation = true THEN 1 ELSE 0 END) as messaged
+      FROM users u
+      LEFT JOIN matches m ON m.user_a_id = u.id OR m.user_b_id = u.id
+      WHERE u.onboarding_status = 'completed'
+      GROUP BY u.id, u.first_name, u.last_name, u.email, u.is_test
+      ORDER BY total_matches DESC
+    `);
+
+    // Score vs reality — approval rate by score range
+    const [scoreRows] = await this.sequelize.query(`
+      SELECT
+        CASE
+          WHEN COALESCE(user_a_persona_compatibility_score, user_b_persona_compatibility_score) >= 80 THEN '80-100'
+          WHEN COALESCE(user_a_persona_compatibility_score, user_b_persona_compatibility_score) >= 60 THEN '60-80'
+          WHEN COALESCE(user_a_persona_compatibility_score, user_b_persona_compatibility_score) >= 40 THEN '40-60'
+          ELSE '0-40'
+        END as score_range,
+        COUNT(*) as total,
+        SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) as approved
+      FROM matches
+      GROUP BY score_range
+      ORDER BY score_range DESC
+    `);
+
+    // Phase status
+    const phases = {
+      phase_1_tracking: { status: 'active', label: 'Event Tracking', activates_at: 0, current: userCount },
+      phase_2_geometric: { status: 'active', label: 'Geometric Mean Scoring', activates_at: 0, current: userCount },
+      phase_3_analytics: { status: 'active', label: 'Match Analytics', activates_at: 0, current: userCount },
+      phase_4_selectivity: { status: userCount >= 50 ? 'active' : 'locked', label: 'Selectivity + Time Decay', activates_at: 50, current: userCount },
+      phase_5_trust: { status: userCount >= 100 ? 'active' : 'locked', label: 'Trust Score', activates_at: 100, current: userCount },
+      phase_6_exploration: { status: userCount >= 200 ? 'active' : 'locked', label: 'Exploration Budget', activates_at: 200, current: userCount },
+      phase_7_collaborative: { status: userCount >= 500 ? 'active' : 'locked', label: 'Collaborative Filtering', activates_at: 500, current: userCount },
+    };
+
+    return {
+      funnel: {
+        total_matches: Number(funnel.total_matches || 0),
+        pending: Number(funnel.pending || 0),
+        approved: Number(funnel.approved || 0),
+        declined: Number(funnel.declined || 0),
+        messaged: Number(funnel.messaged || 0),
+        stale_matches: Number(funnel.stale_matches || 0),
+        // From analytics events (will populate after Phase 1 tracking is live)
+        viewed: eventCounts['match_card_viewed'] || 0,
+        expanded: eventCounts['match_card_expanded'] || 0,
+        ignored: eventCounts['match_ignored'] || 0,
+        ghosted: eventCounts['match_ghosted'] || 0,
+      },
+      users: (userRows as any[]).map(r => ({
+        user_id: r.user_id,
+        name: r.name,
+        email: r.email,
+        is_test: r.is_test,
+        total_matches: Number(r.total_matches || 0),
+        approved: Number(r.approved || 0),
+        passed: Number(r.passed || 0),
+        pending: Number(r.pending || 0),
+        messaged: Number(r.messaged || 0),
+        ignored: 0, // Will populate from analytics events
+        ghosted: 0, // Will populate from analytics events
+      })),
+      score_vs_reality: (scoreRows as any[]).map(r => ({
+        range: r.score_range,
+        total: Number(r.total || 0),
+        approved: Number(r.approved || 0),
+        approval_rate: Number(r.total) > 0 ? Math.round((Number(r.approved) / Number(r.total)) * 100) : 0,
+      })),
+      phases,
+    };
+  }
+
+  /**
    * getWiringAudit
    * --------------
    * Returns truth-based health check for the latest completed user.
