@@ -64,7 +64,7 @@ async function bootstrap() {
         'http://host.docker.internal:5175',
       ],
       methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
-      allowedHeaders: ['Content-Type', 'Accept', 'Authorization'],
+      allowedHeaders: ['Content-Type', 'Accept', 'Authorization', 'X-Platform', 'X-Timezone', 'X-Language', 'X-Screen', 'X-App-Version', 'X-Network'],
       credentials: true, // allow cookies/authorization headers
     });
 
