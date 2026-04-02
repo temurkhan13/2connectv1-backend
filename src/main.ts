@@ -55,6 +55,7 @@ async function bootstrap() {
         'https://ai.dev.2connect.ai',
         'https://admin.dev.2connect.ai',
         'https://2connectv1-frontend.vercel.app',
+        'https://2connect-admin-dashboard.vercel.app',
         'https://twoconnectv1-ai.onrender.com',
         'http://localhost:5173',
         'http://localhost:5174',
