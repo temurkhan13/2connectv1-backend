@@ -381,6 +381,11 @@ export class WebhooksService {
       user_a_designation?: string | null;
       user_b_designation?: string | null;
       match_score?: number | null;
+      explanation?: string | null;
+      match_tier?: string | null;
+      synergy_areas?: string[] | null;
+      friction_points?: string[] | null;
+      talking_points?: string[] | null;
     };
 
     const incoming: InPair[] = [];
@@ -403,6 +408,11 @@ export class WebhooksService {
           user_a_designation: m?.user_a_designation ?? null,
           user_b_designation: m?.user_b_designation ?? null,
           match_score: (m as any)?.match_score ?? null,
+          explanation: (m as any)?.explanation ?? null,
+          match_tier: (m as any)?.match_tier ?? null,
+          synergy_areas: (m as any)?.synergy_areas ?? null,
+          friction_points: (m as any)?.friction_points ?? null,
+          talking_points: (m as any)?.talking_points ?? null,
         });
 
         allUserIds.add(ua);
@@ -479,6 +489,12 @@ export class WebhooksService {
             user_to_user_conversation: false,
             status: MatchStatusEnum.PENDING,
             perfect_match: false,
+            // Pre-populated explanation from LLM matching — avoids on-demand LLM calls
+            explanation: p.explanation ? { summary: p.explanation, generated_at: now.toISOString() } : null,
+            match_tier: p.match_tier ?? null,
+            synergy_areas: p.synergy_areas ?? [],
+            friction_points: p.friction_points ?? [],
+            talking_points: p.talking_points ?? [],
             created_at: now,
             updated_at: now,
           }));

@@ -62,6 +62,34 @@ export class MatchesItemDto {
   @IsOptional()
   @IsNumber()
   match_score?: number; // AI-calculated score, defaults to 50 if not provided
+
+  @ApiProperty({ description: 'AI-generated match explanation/reason' })
+  @IsOptional()
+  @IsString()
+  explanation?: string;
+
+  @ApiProperty({ description: 'Match tier: perfect, strong, worth_exploring, low' })
+  @IsOptional()
+  @IsString()
+  match_tier?: string;
+
+  @ApiProperty({ description: 'Synergy areas between the two users' })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  synergy_areas?: string[];
+
+  @ApiProperty({ description: 'Potential friction points' })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  friction_points?: string[];
+
+  @ApiProperty({ description: 'Suggested talking points' })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  talking_points?: string[];
 }
 
 export class UserMatchesReadyWebhookDto {
