@@ -449,27 +449,27 @@ export class WebhooksService {
           );
         }
 
-        // 3) Load existing pairs for this batch; restrict by involved user ids
+        // 3) Identify the source user (user_a_id is consistent across all pairs)
+        //    and delete their old matches so we get a clean replacement
         const ids = [...allUserIds];
-        const existingPairs = await this.matchModel.findAll({
-          where: {
-            // batch_id,
-            //[Op.or]: [{ user_a_id: { [Op.in]: ids } }, { user_b_id: { [Op.in]: ids } }],
-            user_a_id: { [Op.in]: ids },
-            user_b_id: { [Op.in]: ids },
-          },
-          attributes: ['user_a_id', 'user_b_id'],
-          raw: true,
-          transaction: tx,
-        });
+        const sourceUserId = incoming[0]?.user_a_id;
+        if (sourceUserId) {
+          const deleted = await this.matchModel.destroy({
+            where: {
+              [Op.or]: [
+                { user_a_id: sourceUserId },
+                { user_b_id: sourceUserId },
+              ],
+            },
+            transaction: tx,
+          });
+          if (deleted > 0) {
+            this.logger.log(`Cleared ${deleted} old matches for source user ${sourceUserId}`);
+          }
+        }
 
-        const existingSet = new Set<string>(
-          existingPairs.map(e => pairKey(e.user_a_id, e.user_b_id)),
-        );
-
-        // 4) Prepare only missing rows (use provided A/B orientation as-is)
+        // 4) Insert all incoming rows (old ones were cleared above)
         const rows = incoming
-          .filter(p => !existingSet.has(pairKey(p.user_a_id, p.user_b_id)))
           .map(p => ({
             batch_id,
             user_a_id: p.user_a_id,
