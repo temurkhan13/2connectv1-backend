@@ -27,6 +27,7 @@ interface MatchesReadyEvent {
   match_count: number;
   algorithm: string;
   reciprocal_updates: number;
+  trigger: 'onboarding' | 'cron' | 'profile_edit';
   timestamp: string;
   source: string;
   event_type: string;
@@ -189,7 +190,7 @@ export class EventListenerService implements OnModuleInit, OnModuleDestroy {
    * Handle matches_ready event - send push notification to user.
    */
   private async handleMatchesReady(event: MatchesReadyEvent): Promise<void> {
-    const { user_id, match_count } = event;
+    const { user_id, match_count, trigger } = event;
 
     if (!user_id || match_count === undefined) {
       this.logger.warn('[EventListener] Invalid matches_ready event: missing user_id or match_count');
@@ -203,11 +204,26 @@ export class EventListenerService implements OnModuleInit, OnModuleDestroy {
     }
 
     try {
-      // Send push notification
-      const title = 'Matches Found! 🎉';
-      const body = match_count === 1
-        ? 'We found 1 potential connection for you.'
-        : `We found ${match_count} potential connections for you.`;
+      // Differentiated messages based on what triggered the match generation
+      let title: string;
+      let body: string;
+      const matchText = match_count === 1 ? '1 connection' : `${match_count} connections`;
+
+      switch (trigger) {
+        case 'profile_edit':
+          title = 'Matches Updated ✨';
+          body = `Your matches have been refreshed based on your profile changes. ${matchText} found.`;
+          break;
+        case 'cron':
+          title = `You have ${match_count} new matches`;
+          body = `We found ${matchText} for you. Check them out!`;
+          break;
+        case 'onboarding':
+        default:
+          title = 'Your matches are ready! 🎉';
+          body = `We found ${matchText} for you. Start connecting!`;
+          break;
+      }
 
       await this.notificationService.sendToUser(
         user_id,
@@ -216,11 +232,12 @@ export class EventListenerService implements OnModuleInit, OnModuleDestroy {
         {
           type: 'matches_ready',
           match_count: String(match_count),
+          trigger: trigger || 'onboarding',
           screen: 'matches',
         },
       );
 
-      this.logger.log(`[EventListener] Sent matches_ready notification to ${user_id}`);
+      this.logger.log(`[EventListener] Sent matches_ready (${trigger}) notification to ${user_id}`);
     } catch (error) {
       this.logger.error(`[EventListener] Failed to send matches_ready notification: ${error}`);
     }
