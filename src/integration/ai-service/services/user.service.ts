@@ -113,6 +113,27 @@ export class AIUserService {
   }
 
   /**
+   * Profile Updated
+   * ---------------
+   * Notifies AI service that user edited their profile/summary.
+   * Triggers re-embedding and re-matching pipeline.
+   */
+  async profileUpdated(userId: string): Promise<any> {
+    try {
+      this.logger.log(`Notifying AI service of profile update: ${userId}`);
+      const response = await this.httpClient.post<any>(
+        AI_SERVICE_ENDPOINTS.USER.PROFILE_UPDATED,
+        { user_id: userId },
+      );
+      this.logger.log(`Profile update notification sent for: ${userId}`);
+      return response;
+    } catch (error: any) {
+      this.logger.error(`Failed to notify profile update: ${error.message}`, error.stack);
+      // Don't throw — profile save already succeeded, re-matching is best-effort
+    }
+  }
+
+  /**
    * Initiate AI Chat
    * ----------------
    * Starts an AI-to-AI conversation between two matched users

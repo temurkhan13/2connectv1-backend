@@ -10,6 +10,7 @@ import { S3Service } from 'src/common/utils/s3.service';
 import { UserDocument } from 'src/common/entities/user-document.entity';
 import { UserActivityLogsService } from 'src/modules/user-activity-logs/user-activity-logs.service';
 import { UserActivityEventsEnum } from 'src/common/enums';
+import { AIServiceFacade } from 'src/integration/ai-service/ai-service.facade';
 
 /**
  * ProfileService
@@ -37,6 +38,7 @@ export class ProfileService {
     private readonly s3: S3Service,
     private readonly userActivityLogsService: UserActivityLogsService,
     private readonly sequelize: Sequelize, // used for transactions
+    private readonly aiServiceFacade: AIServiceFacade,
   ) {}
 
   /**
@@ -186,6 +188,36 @@ export class ProfileService {
    * Action: Read latest summary (by created_at DESC) in a read transaction and JSON.parse it if found.
    * Output: Summary record with parsed summary, or null if none.
    */
+  /**
+   * updateSummary
+   * -------------
+   * Input: userId (string), summaryId (string), newSummary (string)
+   * Action: Update summary text in DB, then notify AI service to re-embed + re-match.
+   * Output: true on success.
+   */
+  async updateSummary(userId: string, summaryId: string, newSummary: string) {
+    this.logger.log(`----- UPDATE SUMMARY -----`);
+    this.logger.log({ user_id: userId, summary_id: summaryId });
+
+    await this.sequelize.transaction(async t => {
+      await this.userSummaryModel.update(
+        { summary: newSummary },
+        { where: { id: summaryId, user_id: userId }, transaction: t },
+      );
+    });
+
+    // Notify AI service to re-embed + re-match with updated profile
+    try {
+      await this.aiServiceFacade.profileUpdated(userId);
+      this.logger.log(`AI service notified of profile update for ${userId}`);
+    } catch (error) {
+      // Don't fail the update — re-matching is best-effort
+      this.logger.warn(`Failed to notify AI service of profile update: ${error.message}`);
+    }
+
+    return true;
+  }
+
   async getSummary(userId: string) {
     this.logger.log(`----- GET SUMMARY -----`);
     this.logger.log({ user_id: userId });

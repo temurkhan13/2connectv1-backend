@@ -89,6 +89,17 @@ export class AIServiceFacade {
   }
 
   /**
+   * Notify AI service that user edited their profile.
+   * Triggers re-embedding and re-matching pipeline.
+   */
+  async profileUpdated(userId: string): Promise<any> {
+    return this.executeWithResilience(
+      () => this.userService.profileUpdated(userId),
+      'profileUpdated',
+    );
+  }
+
+  /**
    * Initiate AI-to-AI chat between matched users
    */
   async initiateAIChat(request: InitiateAIChatRequest): Promise<InitiateAIChatResponse> {

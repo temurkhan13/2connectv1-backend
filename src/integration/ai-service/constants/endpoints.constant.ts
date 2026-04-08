@@ -12,6 +12,7 @@ export const AI_SERVICE_ENDPOINTS = {
     FEEDBACK: '/user/feedback',
     FEEDBACK_WITH_REASONS: '/user/feedback-with-reasons', // Phase 2.1
     MATCH_CYCLE: '/user/run-scheduled-matchmaking',
+    PROFILE_UPDATED: '/user/profile-updated',
   },
   MATCH: {
     EXPLANATION: '/match/explanation', // Phase 1.1
