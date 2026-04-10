@@ -21,7 +21,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiResponse, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import type { Response, Express } from 'express';
 import { ProfileService } from 'src/modules/profile/profile.service';
-import { AIUserService } from 'src/integration/ai-service/services/user.service';
+import { AIServiceFacade } from 'src/integration/ai-service/ai-service.facade';
 import { RESPONSES } from 'src/common/responses';
 import { UpdateProfileDto, UpdateAvatarDto } from 'src/modules/profile/dto/profile.dto';
 import { S3Service } from 'src/common/utils/s3.service';
@@ -51,7 +51,7 @@ export class ProfileController {
   constructor(
     private readonly profileService: ProfileService,
     private readonly s3: S3Service,
-    private readonly aiUserService: AIUserService,
+    private readonly aiServiceFacade: AIServiceFacade,
   ) {}
 
   /**
@@ -239,7 +239,7 @@ export class ProfileController {
     await this.profileService.updateSummary(userId, summaryId, body.summary);
 
     // Notify AI service to re-embed and re-match (fire-and-forget)
-    this.aiUserService.profileUpdated(userId).catch(err => {
+    this.aiServiceFacade.profileUpdated(userId).catch(err => {
       // Log but don't fail — summary save already succeeded
     });
 
