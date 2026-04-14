@@ -1,0 +1,34 @@
+name: Deploy Backend to AWS
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-west-2
+
+      - name: Create deployment bundle
+        run: |
+          zip -r deploy.zip . -x ".git/*" "node_modules/*" ".env*" "test/*"
+
+      - name: Upload to S3
+        run: |
+          aws s3 cp deploy.zip s3://2connect-dev-backend-artifacts/backend/deploy.zip
+
+      - name: Deploy via CodeDeploy
+        run: |
+          aws deploy create-deployment \
+            --application-name 2connect \
+            --deployment-group-name backend \
+            --s3-location bucket=2connect-dev-backend-artifacts,key=backend/deploy.zip,bundleType=zip \
+            --file-exists-behavior OVERWRITE
