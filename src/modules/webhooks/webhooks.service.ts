@@ -449,9 +449,21 @@ export class WebhooksService {
           );
         }
 
+        // 2b) Look up objectives from users table for all involved users
+        const ids = [...allUserIds];
+        const usersWithObjectives = await this.userModel.findAll({
+          where: { id: { [Op.in]: ids } },
+          attributes: ['id', 'objective'],
+          raw: true,
+          transaction: tx,
+        });
+        const objectiveById = new Map<string, string>();
+        for (const u of usersWithObjectives) {
+          if (u.objective) objectiveById.set(u.id, u.objective);
+        }
+
         // 3) Identify the source user (user_a_id is consistent across all pairs)
         //    and delete their old matches so we get a clean replacement
-        const ids = [...allUserIds];
         const sourceUserId = incoming[0]?.user_a_id;
         if (sourceUserId) {
           const deleted = await this.matchModel.destroy({
@@ -483,8 +495,8 @@ export class WebhooksService {
             user_b_decision: MatchStatusEnum.PENDING,
             user_a_designation: p.user_a_designation ?? null,
             user_b_designation: p.user_b_designation ?? null,
-            user_a_objective: null,
-            user_b_objective: null,
+            user_a_objective: objectiveById.get(p.user_a_id) ?? null,
+            user_b_objective: objectiveById.get(p.user_b_id) ?? null,
             ai_remarks_after_chat: null,
             user_to_user_conversation: false,
             status: MatchStatusEnum.PENDING,
