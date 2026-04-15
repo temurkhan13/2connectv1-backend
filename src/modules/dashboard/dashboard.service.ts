@@ -251,7 +251,7 @@ export class DashboardService {
           'other_user_is_test',
         ],
       ],
-      order: [['created_at', 'DESC']],
+      order: [['user_a_persona_compatibility_score', 'DESC'], ['created_at', 'DESC']],
       raw: true,
       nest: false,
     });
