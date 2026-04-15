@@ -153,10 +153,33 @@ export class DiscoverService {
     // Transform to anonymous profiles with real match scores
     const profiles: AnonymousProfileDto[] = rows.map((user: any) => {
       const summary = user.userSummaries?.[0];
+      let summaryText = this.anonymizeSummary(summary?.summary || '');
+
+      // Strip user's real name from the anonymized summary
+      // The AI persona text uses names like "Mik brings..." or "Christian is seeking..."
+      const firstName = (user.first_name || '').trim();
+      const lastName = (user.last_name || '').trim();
+      const fullName = `${firstName} ${lastName}`.trim();
+      if (firstName.length > 1) {
+        summaryText = summaryText.replace(new RegExp(`\\b${firstName}\\b`, 'gi'), 'This professional');
+      }
+      if (lastName.length > 1) {
+        summaryText = summaryText.replace(new RegExp(`\\b${lastName}\\b`, 'gi'), '');
+      }
+      if (fullName.length > 3) {
+        summaryText = summaryText.replace(new RegExp(fullName, 'gi'), 'This professional');
+      }
+      // Clean up artifacts: "This professional's" → "Their", double spaces
+      summaryText = summaryText
+        .replace(/This professional's/gi, 'Their')
+        .replace(/This professional is/gi, 'This professional is')
+        .replace(/\s+/g, ' ')
+        .trim();
+
       return {
         id: user.id,
         display_name: `Member #${user.id.substring(0, 8).toUpperCase()}`,
-        profile_summary: this.anonymizeSummary(summary?.summary || ''),
+        profile_summary: summaryText,
         objectives: this.extractObjectives(summary?.summary || ''),
         urgency: summary?.urgency || 'ongoing',
         freshness_score: summary?.freshness_score || 0.5,
