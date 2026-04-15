@@ -502,7 +502,12 @@ export class WebhooksService {
             status: MatchStatusEnum.PENDING,
             perfect_match: false,
             // Pre-populated explanation from LLM matching — avoids on-demand LLM calls
-            explanation: p.explanation ? { summary: p.explanation, generated_at: now.toISOString() } : null,
+            explanation: p.explanation ? {
+              summary: p.explanation,
+              headline: (p as any).headline ?? '',
+              key_points: (p as any).key_points ?? [],
+              generated_at: now.toISOString(),
+            } : null,
             match_tier: p.match_tier ?? null,
             synergy_areas: p.synergy_areas ?? [],
             friction_points: p.friction_points ?? [],

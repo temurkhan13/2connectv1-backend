@@ -1932,6 +1932,8 @@ export class DashboardService {
       const derivedTier = this.computeMatchTier(compatibilityScore);
       return {
         match_id: matchId,
+        headline: (match.explanation as any).headline || '',
+        key_points: (match.explanation as any).key_points || [],
         explanation: match.explanation.summary,
         compatibility_score: compatibilityScore,
         synergy_areas: match.synergy_areas || [],

@@ -43,6 +43,8 @@ export interface ScoreBreakdown {
  */
 export interface MatchExplanation {
   summary: string;
+  headline: string;
+  key_points: string[];
   generated_at: string;
 }
 
