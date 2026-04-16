@@ -413,6 +413,8 @@ export class WebhooksService {
           synergy_areas: (m as any)?.synergy_areas ?? null,
           friction_points: (m as any)?.friction_points ?? null,
           talking_points: (m as any)?.talking_points ?? null,
+          headline: (m as any)?.headline ?? null,
+          key_points: (m as any)?.key_points ?? null,
         });
 
         allUserIds.add(ua);

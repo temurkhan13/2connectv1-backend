@@ -90,6 +90,17 @@ export class MatchesItemDto {
   @IsArray()
   @IsString({ each: true })
   talking_points?: string[];
+
+  @ApiProperty({ description: 'One-line headline for the match' })
+  @IsOptional()
+  @IsString()
+  headline?: string;
+
+  @ApiProperty({ description: 'Short bullet-point key facts about the match' })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  key_points?: string[];
 }
 
 export class UserMatchesReadyWebhookDto {
