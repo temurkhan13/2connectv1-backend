@@ -156,23 +156,48 @@ export class DiscoverService {
       let summaryText = this.anonymizeSummary(summary?.summary || '');
 
       // Strip user's real name from the anonymized summary
-      // The AI persona text uses names like "Mik brings..." or "Christian is seeking..."
+      // Sources: DB first_name/last_name + name from markdown "# Name — Title" header
+      const nameParts = new Set<string>();
+
+      // Source 1: DB fields
       const firstName = (user.first_name || '').trim();
       const lastName = (user.last_name || '').trim();
+      if (firstName.length > 1) nameParts.add(firstName);
+      if (lastName.length > 1) nameParts.add(lastName);
+
+      // Source 2: Extract name from markdown header "# Name — Title" or "# Name"
+      const rawSummary = summary?.summary || '';
+      const headerMatch = rawSummary.match(/^#\s+([^—\-\n]+)/m);
+      if (headerMatch) {
+        const headerName = headerMatch[1].trim();
+        // Split into individual name parts (e.g., "Mik Zamarov" → ["Mik", "Zamarov"])
+        for (const part of headerName.split(/\s+/)) {
+          const clean = part.replace(/[^a-zA-Z'-]/g, '');
+          if (clean.length > 1) nameParts.add(clean);
+        }
+      }
+
+      // Source 3: Check for "Name * description" pattern (legacy format)
+      const starMatch = rawSummary.match(/^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s*\*/m);
+      if (starMatch) {
+        for (const part of starMatch[1].trim().split(/\s+/)) {
+          if (part.length > 1) nameParts.add(part);
+        }
+      }
+
+      // Replace full name first (longest match), then individual parts
       const fullName = `${firstName} ${lastName}`.trim();
-      if (firstName.length > 1) {
-        summaryText = summaryText.replace(new RegExp(`\\b${firstName}\\b`, 'gi'), 'This professional');
-      }
-      if (lastName.length > 1) {
-        summaryText = summaryText.replace(new RegExp(`\\b${lastName}\\b`, 'gi'), '');
-      }
       if (fullName.length > 3) {
         summaryText = summaryText.replace(new RegExp(fullName, 'gi'), 'This professional');
       }
-      // Clean up artifacts: "This professional's" → "Their", double spaces
+      for (const name of nameParts) {
+        summaryText = summaryText.replace(new RegExp(`\\b${name}\\b`, 'gi'), 'This professional');
+      }
+
+      // Clean up artifacts: "This professional's" → "Their", double spaces, repeated "This professional"
       summaryText = summaryText
         .replace(/This professional's/gi, 'Their')
-        .replace(/This professional is/gi, 'This professional is')
+        .replace(/This professional This professional/gi, 'This professional')
         .replace(/\s+/g, ' ')
         .trim();
 
