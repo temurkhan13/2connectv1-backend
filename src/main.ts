@@ -8,11 +8,11 @@ import { ConfigService } from '@nestjs/config';
 import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
-import { ResponseInterceptor } from 'src/common/interceptors/response.interceptor';
-import { RequestMetadataInterceptor } from 'src/common/interceptors/request-metadata.interceptor';
-import { AppModule } from 'src/app.module';
-import { LoggerService } from 'src/common/logger/logger.service';
-import { GlobalExceptionFilter } from 'src/common/filters/global-exception.filter';
+import { ResponseInterceptor } from './common/interceptors/response.interceptor';
+import { RequestMetadataInterceptor } from './common/interceptors/request-metadata.interceptor';
+import { AppModule } from './app.module';
+import { LoggerService } from './common/logger/logger.service';
+import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 import { json, urlencoded } from 'express';
 import * as Sentry from '@sentry/node';
 
