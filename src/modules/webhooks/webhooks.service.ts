@@ -388,6 +388,7 @@ export class WebhooksService {
       talking_points?: string[] | null;
       headline?: string | null;
       key_points?: string[] | null;
+      score_breakdown?: Record<string, number> | null;
     };
 
     const incoming: InPair[] = [];
@@ -417,6 +418,7 @@ export class WebhooksService {
           talking_points: (m as any)?.talking_points ?? null,
           headline: (m as any)?.headline ?? null,
           key_points: (m as any)?.key_points ?? null,
+          score_breakdown: (m as any)?.score_breakdown ?? null,
         });
 
         allUserIds.add(ua);
@@ -516,6 +518,7 @@ export class WebhooksService {
             synergy_areas: p.synergy_areas ?? [],
             friction_points: p.friction_points ?? [],
             talking_points: p.talking_points ?? [],
+            score_breakdown: (p as any).score_breakdown ?? null,
             created_at: now,
             updated_at: now,
           }));

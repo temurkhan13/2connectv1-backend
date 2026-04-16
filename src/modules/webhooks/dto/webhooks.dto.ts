@@ -11,6 +11,7 @@ import {
   IsNumber,
   ArrayMinSize,
   IsOptional,
+  IsObject,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
@@ -101,6 +102,11 @@ export class MatchesItemDto {
   @IsArray()
   @IsString({ each: true })
   key_points?: string[];
+
+  @ApiProperty({ description: 'Per-dimension score breakdown (role_fit, stage_match, geography_match, industry_match)' })
+  @IsOptional()
+  @IsObject()
+  score_breakdown?: Record<string, number>;
 }
 
 export class UserMatchesReadyWebhookDto {
