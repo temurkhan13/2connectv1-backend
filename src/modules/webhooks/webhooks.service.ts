@@ -386,6 +386,8 @@ export class WebhooksService {
       synergy_areas?: string[] | null;
       friction_points?: string[] | null;
       talking_points?: string[] | null;
+      headline?: string | null;
+      key_points?: string[] | null;
     };
 
     const incoming: InPair[] = [];
