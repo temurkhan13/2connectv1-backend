@@ -19,6 +19,44 @@ import {
   InterestResponseDto,
 } from './dto/discover.dto';
 
+// Stop-words excluded from name-stripping (Apr-17 fix).
+//
+// The discover pipeline strips real names from persona summaries before
+// returning them to other users. Historically Source 2 (markdown header
+// extraction) split the header on whitespace and stripped every word,
+// which caused archetype headers like "# The Executive Tech Talent
+// Connector" to obliterate common English words from prose.
+//
+// This list covers:
+//   • Articles / demonstratives / pronouns that could start a header
+//   • Role/archetype words used in persona "name" titles by the LLM
+//     (persona_name is generated as a creative title, e.g. "The Growth
+//     Catalyst", "The Calculated Visionary", "The Emerging Markets
+//     Payments Pioneer")
+//   • Generic business / tech nouns common in archetype names
+//
+// Scope: only applied to Source 2 + Source 3 fallbacks. DB first_name/
+// last_name always passes (the authoritative signal).
+const NAME_STRIP_STOPWORDS = new Set<string>([
+  // articles & demonstratives
+  'a', 'an', 'the', 'this', 'that', 'these', 'those',
+  // pronouns that might appear in headers
+  'he', 'she', 'they', 'his', 'her', 'their', 'its',
+  // archetype / role / descriptive nouns (persona_name is creative-title style)
+  'founder', 'investor', 'recruiter', 'mentor', 'advisor', 'executive',
+  'entrepreneur', 'professional', 'consultant', 'operator', 'leader',
+  'builder', 'strategist', 'specialist', 'expert', 'manager', 'director',
+  // qualifier adjectives common in archetype names
+  'strategic', 'growth', 'calculated', 'visionary', 'pioneer',
+  'connector', 'catalyst', 'emerging', 'global', 'seasoned',
+  'senior', 'junior', 'principal', 'technical', 'tech', 'business',
+  // industry / domain words
+  'fintech', 'healthtech', 'edtech', 'saas', 'enterprise',
+  'startup', 'markets', 'payments', 'talent',
+  // connectors
+  'and', 'or', 'of', 'in', 'for', 'with', 'at', 'on',
+]);
+
 /**
  * Discover Service
  * Phase 3.3: Interactive Search/Browse
@@ -156,32 +194,60 @@ export class DiscoverService {
       let summaryText = this.anonymizeSummary(summary?.summary || '');
 
       // Strip user's real name from the anonymized summary
-      // Sources: DB first_name/last_name + name from markdown "# Name — Title" header
+      //
+      // Apr-17 fix: the previous implementation over-stripped prose.
+      //   OLD flow: always run Source 2 header extraction, split header by
+      //   whitespace, add every token to nameParts. For archetype headers
+      //   like "# The Executive Tech Talent Connector" (no "Name — Title"
+      //   dash), this added "The", "Executive", "Tech", "Talent", "Connector"
+      //   to nameParts → every instance stripped from prose → text became
+      //   "This professional brings This professional unusually This
+      //   professional credibility..." (6× "This professional" per sentence).
+      //
+      // NEW flow:
+      //   1. Trust DB first_name/last_name when populated (source of truth).
+      //   2. Fall back to header extraction ONLY when DB fields missing AND
+      //      the header contains the "Name — Title" em-dash (indicating
+      //      name-style header, not archetype).
+      //   3. Filter header tokens through NAME_STRIP_STOPWORDS to avoid
+      //      catastrophic over-strip even on a legitimate "Name" header.
+      //   4. Expanded cleanup to catch "This This professional" and other
+      //      adjacent-stutter artifacts.
       const nameParts = new Set<string>();
 
-      // Source 1: DB fields
+      // Source 1: DB fields (authoritative)
       const firstName = (user.first_name || '').trim();
       const lastName = (user.last_name || '').trim();
+      const hasDbName = firstName.length > 1 && lastName.length > 1;
       if (firstName.length > 1) nameParts.add(firstName);
       if (lastName.length > 1) nameParts.add(lastName);
 
-      // Source 2: Extract name from markdown header "# Name — Title" or "# Name"
+      // Source 2: Fallback — extract name from markdown header only when DB
+      // is missing and the header uses "Name — Title" em-dash syntax. Skip
+      // entirely for archetype headers like "# The Executive Tech Talent
+      // Connector" (no dash, purely descriptive).
       const rawSummary = summary?.summary || '';
-      const headerMatch = rawSummary.match(/^#\s+([^—\-\n]+)/m);
-      if (headerMatch) {
-        const headerName = headerMatch[1].trim();
-        // Split into individual name parts (e.g., "Mik Zamarov" → ["Mik", "Zamarov"])
-        for (const part of headerName.split(/\s+/)) {
-          const clean = part.replace(/[^a-zA-Z'-]/g, '');
-          if (clean.length > 1) nameParts.add(clean);
+      if (!hasDbName) {
+        const nameTitleMatch = rawSummary.match(/^#\s+([^—\n]+?)\s+—/m);
+        if (nameTitleMatch) {
+          const headerName = nameTitleMatch[1].trim();
+          for (const part of headerName.split(/\s+/)) {
+            const clean = part.replace(/[^a-zA-Z'-]/g, '');
+            if (clean.length > 1 && !NAME_STRIP_STOPWORDS.has(clean.toLowerCase())) {
+              nameParts.add(clean);
+            }
+          }
         }
       }
 
-      // Source 3: Check for "Name * description" pattern (legacy format)
+      // Source 3: Check for "Name * description" pattern (legacy format).
+      // Stricter regex already requires capitalized-word sequence — low risk.
       const starMatch = rawSummary.match(/^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s*\*/m);
       if (starMatch) {
         for (const part of starMatch[1].trim().split(/\s+/)) {
-          if (part.length > 1) nameParts.add(part);
+          if (part.length > 1 && !NAME_STRIP_STOPWORDS.has(part.toLowerCase())) {
+            nameParts.add(part);
+          }
         }
       }
 
@@ -194,10 +260,18 @@ export class DiscoverService {
         summaryText = summaryText.replace(new RegExp(`\\b${name}\\b`, 'gi'), 'This professional');
       }
 
-      // Clean up artifacts: "This professional's" → "Their", double spaces, repeated "This professional"
+      // Clean up artifacts from mass-substitution:
+      //   • "This professional's" → "Their" (possessive)
+      //   • "This This professional" → "This professional" (archetype leak)
+      //   • "This professional This professional" → "This professional" (adjacent stutter)
+      //   • Repeat both stutter cleanups to catch 3+ chains
+      //   • Collapse double spaces
       summaryText = summaryText
         .replace(/This professional's/gi, 'Their')
-        .replace(/This professional This professional/gi, 'This professional')
+        .replace(/\bThis This professional\b/gi, 'This professional')
+        .replace(/\bThis professional This professional\b/gi, 'This professional')
+        .replace(/\bThis This professional\b/gi, 'This professional')
+        .replace(/\bThis professional This professional\b/gi, 'This professional')
         .replace(/\s+/g, ' ')
         .trim();
 
