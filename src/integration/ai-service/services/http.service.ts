@@ -127,6 +127,23 @@ export class AIServiceHttpClient {
   }
 
   /**
+   * Make POST request WITHOUT retry — single attempt.
+   *
+   * Use for endpoints that are expensive/slow (e.g. LLM-backed) where a retry
+   * spawns a duplicate expensive upstream operation rather than recovering a
+   * transient failure. The client should handle failure directly; the retry
+   * at this layer would just create thundering-herd work.
+   *
+   * See Apr-18 Follow-up 25: onboarding/chat was triggering 3 concurrent
+   * extractions per user message (1 original + 1 frontend auto-retry + 1
+   * backend withRetry). This path eliminates the backend retry.
+   */
+  async postOnce<T = any>(endpoint: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+    const response = await this.httpClient.post<T>(endpoint, data, config);
+    return response.data;
+  }
+
+  /**
    * Make GET request
    */
   async get<T = any>(endpoint: string, config?: AxiosRequestConfig): Promise<T> {

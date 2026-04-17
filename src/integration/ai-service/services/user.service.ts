@@ -425,7 +425,10 @@ export class AIUserService {
         `Onboarding chat for user: ${request.user_id}, session: ${request.session_id || 'new'}`,
       );
 
-      const response = await this.httpClient.post<OnboardingChatResponse>(
+      // postOnce (no retry) — slot extraction is a single long LLM call; a
+      // retry just spawns a duplicate 25-60s extraction on the AI service and
+      // compounds timeouts without ever recovering. See Apr-18 Follow-up 25.
+      const response = await this.httpClient.postOnce<OnboardingChatResponse>(
         AI_SERVICE_ENDPOINTS.ONBOARDING.CHAT,
         request,
       );
