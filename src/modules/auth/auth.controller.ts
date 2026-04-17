@@ -112,7 +112,15 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     const response = await this.authService.resendVerificationCode(body.email);
-    return response;
+    // Mask the OTP in production — it should only reach the user via email.
+    // Dev keeps the code in the response so engineers don't need to open
+    // the mailbox every test. Matches the signup endpoint's pattern.
+    const isProd = process.env.NODE_ENV === 'production';
+    return {
+      ...response,
+      email_verification_code: isProd ? null : response.email_verification_code,
+      expires_at: isProd ? null : response.expires_at,
+    };
   }
 
   /**
@@ -142,6 +150,19 @@ export class AuthController {
         sameSite: 'strict',
         maxAge: 96 * 60 * 60 * 1000,
       });
+
+    // Signin for an unverified user returns a fresh email_verification_code
+    // alongside user data. Mask the OTP in production for the same reason
+    // as signup / resend / forgot-password: code should only reach the
+    // legitimate recipient via email.
+    const isProd = process.env.NODE_ENV === 'production';
+    if (isProd && (response as any).email_verification_code) {
+      return {
+        ...response,
+        email_verification_code: null,
+        expires_at: null,
+      };
+    }
 
     return response;
   }
@@ -243,7 +264,15 @@ export class AuthController {
   })
   async forgotPassword(@Body() dto: ForgotPasswordDto, @Res({ passthrough: true }) res: Response) {
     const response = await this.authService.forgotPassword(dto.email);
-    return response;
+    // Mask the reset code in production — anyone who knew an email could
+    // otherwise request the code and read it directly from the response
+    // body, bypassing the inbox-possession check entirely.
+    const isProd = process.env.NODE_ENV === 'production';
+    return {
+      ...response,
+      password_reset_code: isProd ? null : response.password_reset_code,
+      expires_at: isProd ? null : response.expires_at,
+    };
   }
 
   /**
