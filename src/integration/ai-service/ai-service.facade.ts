@@ -46,7 +46,7 @@ import {
 @Injectable()
 export class AIServiceFacade {
   private readonly logger = new Logger(AIServiceFacade.name);
-  private readonly TIMEOUT_MS = 30000; // 30 second timeout for Claude API calls
+  private readonly TIMEOUT_MS = 90000; // 90s — must be >= AI_SERVICE_TIMEOUT (60s HTTP) + headroom for slot extraction on long onboarding messages (see Apr-18 Follow-up 25)
 
   constructor(private readonly userService: AIUserService) {}
 
