@@ -5,11 +5,12 @@ import { BullModule } from '@nestjs/bull';
 import { MailService } from 'src/modules/mail/mail.service';
 import { Match } from 'src/common/entities/match.entity';
 import { User } from 'src/common/entities/user.entity';
+import { EmailSent } from 'src/common/entities/email-sent.entity';
 import { WeeklyMatchEmailProcessor } from 'src/modules/mail/match-mail.processor';
 
 @Module({
   imports: [
-    SequelizeModule.forFeature([Match, User]),
+    SequelizeModule.forFeature([Match, User, EmailSent]),
     ConfigModule,
     BullModule.registerQueue({
       name: 'weekly-match-email',

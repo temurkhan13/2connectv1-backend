@@ -15,6 +15,7 @@ import { forgotPasswordTemplate } from 'src/common/email-templates/forgot_passwo
 import { newApprovalTemplate } from 'src/common/email-templates/new_approval_template';
 import { newMatchTemplate } from 'src/common/email-templates/new_match_template';
 import { newMessageTemplate } from 'src/common/email-templates/new_message_template';
+import { EmailSent } from 'src/common/entities/email-sent.entity';
 
 export type WeeklyMatchEmailJobPayload = {
   email: string;
@@ -75,6 +76,7 @@ export class MailService {
     private readonly config: ConfigService,
     @InjectModel(Match) private readonly matchModel: typeof Match,
     @InjectModel(User) private readonly userModel: typeof User,
+    @InjectModel(EmailSent) private readonly emailSentModel: typeof EmailSent,
     @InjectQueue('weekly-match-email')
     private readonly weeklyMatchEmailQueue: Queue<WeeklyMatchEmailJobPayload>,
   ) {
@@ -343,23 +345,46 @@ export class MailService {
 
     const cmd = new SendEmailCommand(payload);
 
+    let messageId: string | null = null;
+    let sendError: string | null = null;
+    let ok = false;
+
     try {
       const res = await this.ses.send(cmd);
-
       if (!res.MessageId) {
         this.logger.error(`${tag}SES returned no MessageId — email may NOT have been sent.`);
-        return false;
+        sendError = 'SES returned no MessageId';
+      } else {
+        messageId = res.MessageId;
+        this.logger.log(`${tag}Email successfully handed to SES for delivery.`);
+        ok = true;
       }
-
-      this.logger.log(`${tag}Email successfully handed to SES for delivery.`);
-      return true;
     } catch (err) {
       const error = err as Error;
-
-      this.logger.error(`${tag}SES email send FAILED: ${error.message}`);
-
-      return false;
+      sendError = error.message || String(err);
+      this.logger.error(`${tag}SES email send FAILED: ${sendError}`);
     }
+
+    // Audit trail. Fire-and-log: a DB hiccup should never prevent the caller
+    // from learning the actual SES result — we already have the result above.
+    // `user_id` is optional because some flows (signup verification) fire
+    // before the transactional user row is visible outside the active tx.
+    try {
+      await this.emailSentModel.create({
+        user_id: null,
+        to_email: to,
+        log_context: logContext || 'unknown',
+        subject: subject.slice(0, 255),
+        ses_message_id: messageId,
+        success: ok,
+        error_message: sendError ? sendError.slice(0, 500) : null,
+      } as any);
+    } catch (auditErr) {
+      const e = auditErr as Error;
+      this.logger.warn(`${tag}email audit insert failed (send outcome unchanged): ${e.message}`);
+    }
+
+    return ok;
   }
 
   /**
