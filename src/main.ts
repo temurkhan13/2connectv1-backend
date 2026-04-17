@@ -41,6 +41,14 @@ async function bootstrap() {
     // Bigger limit ONLY for AI matches webhook (15mb)
     app.use('/api/v1/webhooks/matches-ready', json({ limit: '15mb' }));
 
+    // SNS posts its notification envelopes with Content-Type: text/plain; charset=UTF-8
+    // (per AWS docs) so the global `json()` middleware skips them. Add a route-local
+    // parser that treats text/plain as JSON for the SES events webhook only.
+    app.use(
+      '/api/v1/webhooks/ses-events',
+      json({ limit: '2mb', type: ['application/json', 'text/plain'] }),
+    );
+
     // Resolve Config + custom Logger from DI
     const configService = app.get(ConfigService);
     const logger = app.get(LoggerService);
