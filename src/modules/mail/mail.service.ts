@@ -36,15 +36,28 @@ export class MailService {
     @InjectQueue('weekly-match-email')
     private readonly weeklyMatchEmailQueue: Queue<WeeklyMatchEmailJobPayload>,
   ) {
-    const region = this.config.get<string>('AWS_REGION') || 'ap-south-1';
-    const accessKeyId = this.config.get<string>('AWS_ACCESS_KEY_ID');
-    const clientConfig: SESv2ClientConfig = { region };
+    // SES-specific credential override.
+    // The backend's primary AWS_ACCESS_KEY_ID may belong to a different account
+    // than the one where SES identities / production access live. Prefer
+    // SES_AWS_* if set; fall back to generic AWS_* otherwise.
+    const sesRegion =
+      this.config.get<string>('SES_AWS_REGION') ||
+      this.config.get<string>('AWS_REGION') ||
+      'us-west-2';
+    const sesAccessKeyId =
+      this.config.get<string>('SES_AWS_ACCESS_KEY_ID') ||
+      this.config.get<string>('AWS_ACCESS_KEY_ID');
+    const clientConfig: SESv2ClientConfig = { region: sesRegion };
 
-    // If running locally with explicit credentials
-    if (accessKeyId) {
-      const secretAccessKey = this.config.get<string>('AWS_SECRET_ACCESS_KEY')!;
-      clientConfig.credentials = { accessKeyId, secretAccessKey };
-      this.logger.log('SES: Using explicit credentials from environment (local dev).');
+    if (sesAccessKeyId) {
+      const sesSecretAccessKey =
+        this.config.get<string>('SES_AWS_SECRET_ACCESS_KEY') ||
+        this.config.get<string>('AWS_SECRET_ACCESS_KEY')!;
+      clientConfig.credentials = {
+        accessKeyId: sesAccessKeyId,
+        secretAccessKey: sesSecretAccessKey,
+      };
+      this.logger.log(`SES: Using explicit credentials (region=${sesRegion}).`);
     } else {
       this.logger.log('SES: Using default credential provider chain (IAM role on EC2/ECS).');
     }
