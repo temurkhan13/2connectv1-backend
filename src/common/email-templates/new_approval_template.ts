@@ -1206,7 +1206,7 @@ export const newApprovalTemplate = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0
                                                             <tr>
                                                               <td class="t80">
                                                                 <a
-                                                                  href="{{instagram_url}}"
+                                                                  href="{{linkedin_url}}"
                                                                   target="_blank"
                                                                   style="
                                                                     font-size: 0px;
@@ -1225,7 +1225,7 @@ export const newApprovalTemplate = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0
                                                                     width="24"
                                                                     height="24"
                                                                     alt=""
-                                                                    src="{{s3_public_url}}instagram.png"
+                                                                    src="{{s3_public_url}}linkedin.png"
                                                                   />
                                                                 </a>
                                                               </td>
@@ -1411,7 +1411,7 @@ export const newApprovalTemplate = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0
                                                     mso-text-raise: 2px;
                                                   "
                                                 >
-                                                  © 2025 2Connect. All rights
+                                                  © 2026 2Connect. All rights
                                                   reserved.<br />
                                                 </p>
                                               </td>

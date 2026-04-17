@@ -85,14 +85,21 @@ export class MailService {
 
   private injectSOcialMediaAndOfficialUrls(template: string): string {
     if (!template) return '';
+    // Instagram is intentionally left for backward-compat with any legacy
+    // template row that still references it; current templates use the
+    // 2Connect social set: LinkedIn + X + Facebook + YouTube.
     const INSTAGRAM_URL = process.env.INSTAGRAM_URL || '';
     const TWITTER_URL = process.env.TWITTER_URL || '';
     const FACEBOOK_URL = process.env.FACEBOOK_URL || '';
+    const LINKEDIN_URL = process.env.LINKEDIN_URL || '';
+    const YOUTUBE_URL = process.env.YOUTUBE_URL || '';
     const TERMS_AND_CONDITIONS_URL = process.env.TERMS_AND_CONDITIONS_URL || '';
     const PRIVACY_POLICY_URL = process.env.PRIVACY_POLICY_URL || '';
     let html = template.replace(/{{\s*instagram_url\s*}}/gi, INSTAGRAM_URL);
     html = html.replace(/{{\s*twitter_url\s*}}/gi, TWITTER_URL);
     html = html.replace(/{{\s*facebook_url\s*}}/gi, FACEBOOK_URL);
+    html = html.replace(/{{\s*linkedin_url\s*}}/gi, LINKEDIN_URL);
+    html = html.replace(/{{\s*youtube_url\s*}}/gi, YOUTUBE_URL);
     html = html.replace(/{{\s*terms_url\s*}}/gi, TERMS_AND_CONDITIONS_URL);
     html = html.replace(/{{\s*privacy_url\s*}}/gi, PRIVACY_POLICY_URL);
     return html;

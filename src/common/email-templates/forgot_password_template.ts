@@ -113,12 +113,12 @@ export const forgotPasswordTemplate = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 
                   <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:0 auto;">
                     <tr>
                       <td style="padding:0 6px;">
-                        <a href="{{instagram_url}}" target="_blank" style="font-size:0;">
+                        <a href="{{linkedin_url}}" target="_blank" style="font-size:0;">
                           <img
-                            src="{{s3_public_url}}instagram.png"
+                            src="{{s3_public_url}}linkedin.png"
                             width="24"
                             height="24"
-                            alt="Instagram"
+                            alt="LinkedIn"
                             style="display:block; border:0; height:auto; width:24px; max-width:100%; margin:0;"
                           />
                         </a>
@@ -129,7 +129,7 @@ export const forgotPasswordTemplate = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 
                             src="{{s3_public_url}}twitter.png"
                             width="24"
                             height="24"
-                            alt="Twitter"
+                            alt="X"
                             style="display:block; border:0; height:auto; width:24px; max-width:100%; margin:0;"
                           />
                         </a>
@@ -145,6 +145,17 @@ export const forgotPasswordTemplate = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 
                           />
                         </a>
                       </td>
+                      <td style="padding:0 6px;">
+                        <a href="{{youtube_url}}" target="_blank" style="font-size:0;">
+                          <img
+                            src="{{s3_public_url}}youtube.png"
+                            width="24"
+                            height="24"
+                            alt="YouTube"
+                            style="display:block; border:0; height:auto; width:24px; max-width:100%; margin:0;"
+                          />
+                        </a>
+                      </td>
                     </tr>
                   </table>
                 </td>
@@ -154,7 +165,7 @@ export const forgotPasswordTemplate = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 
               <tr>
                 <td class="px" align="center" style="padding:16px 24px 24px 24px; border-top:1px solid #F4F2FD;">
                   <p style="margin:0; font:500 10px Inter, Arial, sans-serif; color:#4A5462; line-height:16px;">
-                    © 2025 2Connect. All rights reserved.
+                    © 2026 2Connect. All rights reserved.
                     &nbsp;&middot;&nbsp;<a href="{{privacy_url}}" style="color:#267791; font-weight:600;">Privacy policy</a>
                     &nbsp;&middot;&nbsp;<a href="{{terms_url}}" style="color:#267791; font-weight:600;">Terms</a>
                   </p>
