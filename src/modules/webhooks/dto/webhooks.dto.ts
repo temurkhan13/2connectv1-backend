@@ -12,6 +12,7 @@ import {
   ArrayMinSize,
   IsOptional,
   IsObject,
+  IsBoolean,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
@@ -107,6 +108,17 @@ export class MatchesItemDto {
   @IsOptional()
   @IsObject()
   score_breakdown?: Record<string, number>;
+
+  @ApiProperty({
+    description:
+      'Primary-goal reciprocity flag from the AI matching pipeline. ' +
+      'true = partner primary_goal directly exchanges value (Primary match). ' +
+      'false = partner included as adjacent backfill (Adjacent match, SOFT fallback mode). ' +
+      'null/missing = reciprocity could not be evaluated (unknown user_goal, missing slot).',
+  })
+  @IsOptional()
+  @IsBoolean()
+  reciprocal?: boolean;
 }
 
 export class UserMatchesReadyWebhookDto {
