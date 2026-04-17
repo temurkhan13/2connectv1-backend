@@ -95,6 +95,11 @@ export class MailService {
     const YOUTUBE_URL = process.env.YOUTUBE_URL || '';
     const TERMS_AND_CONDITIONS_URL = process.env.TERMS_AND_CONDITIONS_URL || '';
     const PRIVACY_POLICY_URL = process.env.PRIVACY_POLICY_URL || '';
+    // Support email appears in both short templates as a mailto: link inside
+    // the safety/help copy. Without this replacement the href stayed literal
+    // as "mailto:{{support_email}}" and clicking broke. Constant default
+    // keeps it working even without explicit env config.
+    const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || 'support@2connect.ai';
     let html = template.replace(/{{\s*instagram_url\s*}}/gi, INSTAGRAM_URL);
     html = html.replace(/{{\s*twitter_url\s*}}/gi, TWITTER_URL);
     html = html.replace(/{{\s*facebook_url\s*}}/gi, FACEBOOK_URL);
@@ -102,6 +107,7 @@ export class MailService {
     html = html.replace(/{{\s*youtube_url\s*}}/gi, YOUTUBE_URL);
     html = html.replace(/{{\s*terms_url\s*}}/gi, TERMS_AND_CONDITIONS_URL);
     html = html.replace(/{{\s*privacy_url\s*}}/gi, PRIVACY_POLICY_URL);
+    html = html.replace(/{{\s*support_email\s*}}/gi, SUPPORT_EMAIL);
     return html;
   }
 
