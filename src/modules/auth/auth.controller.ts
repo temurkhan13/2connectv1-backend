@@ -1,10 +1,24 @@
-import { Controller, Post, Body, Res, UseGuards, Request, HttpCode } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Body,
+  Query,
+  Res,
+  UseGuards,
+  Request,
+  HttpCode,
+} from '@nestjs/common';
 import { ApiTags, ApiResponse, ApiBody, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
+import { ConfigService } from '@nestjs/config';
+import { InjectModel } from '@nestjs/sequelize';
+import { User } from 'src/common/entities/user.entity';
 import { AuthService } from 'src/modules/auth/auth.service';
 import { RESPONSES } from 'src/common/responses';
+import { verifyUnsubscribeToken } from 'src/modules/mail/mail.service';
 
 /**
  * Tight rate limit for code-issuing auth endpoints.
@@ -43,7 +57,11 @@ import {
 @ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly config: ConfigService,
+    @InjectModel(User) private readonly userModel: typeof User,
+  ) {}
 
   /**
    * Email/password signup.
@@ -87,6 +105,7 @@ export class AuthController {
    * Verify email using the received code.
    */
   @Post('verify-email')
+  @Throttle(AUTH_SENSITIVE_THROTTLE)
   @HttpCode(200)
   @ApiBody({ type: VerifyEmailDto })
   @ApiResponse({
@@ -290,6 +309,7 @@ export class AuthController {
    * Verify the code sent for resetting password.
    */
   @Post('verify-reset-password-code')
+  @Throttle(AUTH_SENSITIVE_THROTTLE)
   @HttpCode(200)
   @ApiBody({ type: VerifyResetPasswordCodeDto })
   @ApiResponse({
@@ -386,5 +406,70 @@ export class AuthController {
     });
     await this.authService.logout(userId);
     return true;
+  }
+
+  /**
+   * List-Unsubscribe flow.
+   * - GET: user clicks the link in a marketing/digest email; we flip
+   *   email_notifications=false and return a small HTML confirmation.
+   * - POST: one-click unsubscribe per RFC 8058 (Gmail, Apple Mail). The mail
+   *   client posts with no body; we flip the flag and return 200 JSON.
+   *
+   * Token is HMAC-SHA256(userId) signed with JWT_SECRET (or
+   * UNSUBSCRIBE_SECRET if explicitly set). Verified in constant time.
+   * No expiry — users should always be able to act on an unsubscribe
+   * link even from old emails.
+   */
+  private async resolveUnsubscribeToken(token: string | undefined): Promise<string | null> {
+    if (!token) return null;
+    const secret =
+      this.config.get<string>('UNSUBSCRIBE_SECRET') || this.config.get<string>('JWT_SECRET');
+    if (!secret) return null;
+    return verifyUnsubscribeToken(token, secret);
+  }
+
+  private async flipEmailNotifications(userId: string): Promise<boolean> {
+    const [count] = await this.userModel.update(
+      { email_notifications: false },
+      { where: { id: userId } },
+    );
+    return count > 0;
+  }
+
+  @Get('unsubscribe')
+  async unsubscribeGet(@Query('token') token: string, @Res() res: Response) {
+    const userId = await this.resolveUnsubscribeToken(token);
+    if (!userId) {
+      res.status(400).setHeader('Content-Type', 'text/html; charset=utf-8').send(
+        `<!doctype html><html><head><meta charset="utf-8"><title>Unsubscribe</title>
+         <style>body{font-family:Arial,sans-serif;max-width:480px;margin:80px auto;padding:0 24px;color:#364151}
+         h1{color:#190D57;font-size:24px;margin:0 0 16px}p{margin:0;line-height:1.5}</style></head>
+         <body><h1>Link invalid or expired</h1>
+         <p>This unsubscribe link can't be verified. You can update email preferences in your account settings on <a href="https://app.2connect.ai/settings" style="color:#267791">app.2connect.ai/settings</a>.</p>
+         </body></html>`,
+      );
+      return;
+    }
+    const ok = await this.flipEmailNotifications(userId);
+    const status = ok ? 200 : 404;
+    res.status(status).setHeader('Content-Type', 'text/html; charset=utf-8').send(
+      `<!doctype html><html><head><meta charset="utf-8"><title>Unsubscribed</title>
+       <style>body{font-family:Arial,sans-serif;max-width:480px;margin:80px auto;padding:0 24px;color:#364151}
+       h1{color:#190D57;font-size:24px;margin:0 0 16px}p{margin:0 0 12px;line-height:1.5}
+       a{color:#267791;font-weight:600}</style></head>
+       <body><h1>You're unsubscribed</h1>
+       <p>You won't receive match notification emails from 2Connect anymore.</p>
+       <p>Changed your mind? You can re-enable emails anytime from <a href="https://app.2connect.ai/settings">account settings</a>.</p>
+       </body></html>`,
+    );
+  }
+
+  @Post('unsubscribe')
+  @HttpCode(200)
+  async unsubscribePost(@Query('token') token: string) {
+    const userId = await this.resolveUnsubscribeToken(token);
+    if (!userId) return { success: false, error: 'invalid_token' };
+    const ok = await this.flipEmailNotifications(userId);
+    return { success: ok };
   }
 }

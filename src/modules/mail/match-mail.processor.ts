@@ -17,8 +17,8 @@ export class WeeklyMatchEmailProcessor {
   @Process('weekly_match_summary')
   async handleWeeklyMatchSummary(job: Job<WeeklyMatchEmailJobPayload>): Promise<void> {
     this.logger.log(`||||| HANDLE WEEKLY MATCH JOB PROCESSOR |||||`);
-    const { email, firstName, count, primaryCount, adjacentCount } = job.data;
-    this.logger.log({ email, first_name: firstName, count, primaryCount, adjacentCount });
+    const { email, firstName, count, primaryCount, adjacentCount, userId } = job.data;
+    this.logger.log({ email, first_name: firstName, count, primaryCount, adjacentCount, userId });
 
     this.logger.log(
       `Sending weekly match summary to ${email} (count=${count} primary=${primaryCount ?? 'n/a'} adjacent=${adjacentCount ?? 'n/a'})`,
@@ -30,6 +30,7 @@ export class WeeklyMatchEmailProcessor {
       count,
       primaryCount,
       adjacentCount,
+      userId,
     );
 
     if (!ok) {

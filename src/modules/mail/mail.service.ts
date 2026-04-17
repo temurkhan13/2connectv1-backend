@@ -1,4 +1,5 @@
 import * as nodemailer from 'nodemailer';
+import * as crypto from 'crypto';
 import { Injectable, Logger } from '@nestjs/common';
 import { SESv2Client, SendEmailCommand, SESv2ClientConfig } from '@aws-sdk/client-sesv2';
 import { ConfigService } from '@nestjs/config';
@@ -24,7 +25,43 @@ export type WeeklyMatchEmailJobPayload = {
   // queue entries without these fields render as a flat count.
   primaryCount?: number;
   adjacentCount?: number;
+  // userId is used to generate a signed unsubscribe token per-user.
+  // Optional for backward-compat with pre-Apr-18 in-flight queue items;
+  // when absent the digest sends without a List-Unsubscribe header.
+  userId?: string;
 };
+
+/**
+ * Sign a userId into an unsubscribe token: base64url(payload).base64url(HMAC-SHA256(payload)).
+ * Payload is a compact JSON { u: userId, t: 'unsub' }. No expiry — users should
+ * always be able to act on an unsubscribe link even from old emails.
+ * Verification happens in AuthController.unsubscribe().
+ */
+export function signUnsubscribeToken(userId: string, secret: string): string {
+  const payload = Buffer.from(JSON.stringify({ u: userId, t: 'unsub' })).toString('base64url');
+  const sig = crypto.createHmac('sha256', secret).update(payload).digest('base64url');
+  return `${payload}.${sig}`;
+}
+
+export function verifyUnsubscribeToken(token: string, secret: string): string | null {
+  if (!token || typeof token !== 'string') return null;
+  const parts = token.split('.');
+  if (parts.length !== 2) return null;
+  const [payload, sig] = parts;
+  const expected = crypto.createHmac('sha256', secret).update(payload).digest('base64url');
+  // Constant-time compare to avoid signature-timing leaks.
+  const sigBuf = Buffer.from(sig);
+  const expBuf = Buffer.from(expected);
+  if (sigBuf.length !== expBuf.length) return null;
+  if (!crypto.timingSafeEqual(sigBuf, expBuf)) return null;
+  try {
+    const data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    if (data?.t !== 'unsub' || typeof data?.u !== 'string') return null;
+    return data.u;
+  } catch {
+    return null;
+  }
+}
 
 @Injectable()
 export class MailService {
@@ -142,6 +179,53 @@ export class MailService {
     return template.replace(/{{\s*frontend_url\s*}}/gi, frontendUrl);
   }
 
+  /**
+   * Inject a hidden pre-header / preview text right after the opening <body>
+   * tag. Email clients (Gmail, Apple Mail, Outlook) use the first visible
+   * text as the inbox preview; without this they fall back to the logo alt
+   * or the first copy line. The div is styled to collapse to 0 dimensions
+   * and be invisible in the actual rendered email body.
+   */
+  private injectPreviewText(template: string, text: string): string {
+    if (!template || !text) return template;
+    // Escape raw angle brackets / quotes so preview text can contain them.
+    const esc = text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+    const hidden =
+      `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;` +
+      `font-size:1px;line-height:1px;color:#ffffff;visibility:hidden;opacity:0;">${esc}</div>` +
+      // Zero-width non-joiners to push any body copy past Gmail's
+      // preview-text window so only the hidden div shows.
+      `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">` +
+      '&#847;&zwnj;&nbsp;'.repeat(40) +
+      `</div>`;
+    return template.replace(/<body([^>]*)>/i, `<body$1>${hidden}`);
+  }
+
+  /**
+   * Build the signed unsubscribe URL used in List-Unsubscribe header and
+   * footer link. Only applied to the weekly-digest email — transactional
+   * sends (verify, reset) don't need unsubscribe per CAN-SPAM.
+   */
+  private buildUnsubscribeUrl(userId: string): string | null {
+    if (!userId) return null;
+    const secret =
+      this.config.get<string>('UNSUBSCRIBE_SECRET') ||
+      this.config.get<string>('JWT_SECRET');
+    if (!secret) {
+      this.logger.warn('UNSUBSCRIBE_SECRET / JWT_SECRET not set — skipping unsubscribe link');
+      return null;
+    }
+    const apiBase =
+      this.config.get<string>('API_BASE_URL') || 'https://api.2connect.ai/api/v1';
+    const token = signUnsubscribeToken(userId, secret);
+    return `${apiBase}/auth/unsubscribe?token=${encodeURIComponent(token)}`;
+  }
+
   // ---------------------------------------------------------------------------
   // SINGLE EMAIL SENDER FUNCTION
   // ---------------------------------------------------------------------------
@@ -219,8 +303,9 @@ export class MailService {
     html: string;
     textFallback?: string;
     logContext?: string;
+    unsubscribeUrl?: string;
   }): Promise<boolean> {
-    const { to, subject, html, textFallback, logContext } = params;
+    const { to, subject, html, textFallback, logContext, unsubscribeUrl } = params;
     const tag = logContext ? `[${logContext}] ` : '';
 
     this.logger.log(`${tag}Preparing to send email via SES to: ${to}`);
@@ -231,12 +316,22 @@ export class MailService {
       stripHtml(html) ||
       `${this.appName} notification. If you cannot view HTML, please open the app.`;
 
-    // 2) Prepare SES request
-    const payload = {
+    // 2) Build RFC2369 + RFC8058 List-Unsubscribe headers for mailings that
+    //    want them (weekly digest). Skip for transactional flows (verify,
+    //    reset) per CAN-SPAM — they're exempt from unsubscribe requirements.
+    const headers: Array<{ Name: string; Value: string }> = [];
+    if (unsubscribeUrl) {
+      headers.push({ Name: 'List-Unsubscribe', Value: `<${unsubscribeUrl}>` });
+      headers.push({ Name: 'List-Unsubscribe-Post', Value: 'List-Unsubscribe=One-Click' });
+    }
+
+    // 3) Prepare SES request
+    const payload: any = {
       FromEmailAddress: this.fromEmail,
       Destination: { ToAddresses: [to] },
       Content: {
         Simple: {
+          ...(headers.length > 0 ? { Headers: headers } : {}),
           Subject: { Data: subject, Charset: 'UTF-8' },
           Body: {
             Html: { Data: html, Charset: 'UTF-8' },
@@ -277,6 +372,10 @@ export class MailService {
     let html = this.injectCode(VerifyEmailTemplate, code);
     html = this.injectS3Url(html);
     html = this.injectSOcialMediaAndOfficialUrls(html);
+    html = this.injectPreviewText(
+      html,
+      `Your 2Connect verification code: ${code}. Expires soon.`,
+    );
     const textFallback =
       stripHtml(html) ||
       `${this.appName} verification code: ${code}. If you cannot view HTML, use this code in the app.`;
@@ -303,6 +402,10 @@ export class MailService {
     let html = this.injectCode(forgotPasswordTemplate, code);
     html = this.injectS3Url(html);
     html = this.injectSOcialMediaAndOfficialUrls(html);
+    html = this.injectPreviewText(
+      html,
+      `Your 2Connect password reset code: ${code}. Expires soon.`,
+    );
 
     const textFallback =
       stripHtml(html) ||
@@ -337,6 +440,10 @@ export class MailService {
     html = this.injectUrl(html);
     html = this.injectS3Url(html);
     html = this.injectSOcialMediaAndOfficialUrls(html);
+    html = this.injectPreviewText(
+      html,
+      `${approver_name} is waiting for your response on 2Connect.`,
+    );
 
     const textFallback =
       stripHtml(html) ||
@@ -369,6 +476,7 @@ export class MailService {
     count: number,
     primaryCount?: number,
     adjacentCount?: number,
+    userId?: string,
   ): Promise<boolean> {
     this.logger.log(`SEND WEEKLY MATCH SUMMARY EMAIL`);
     this.logger.log({ email });
@@ -376,11 +484,23 @@ export class MailService {
     this.logger.log({ count, primaryCount, adjacentCount });
 
     const label = buildMatchLabel(count, primaryCount, adjacentCount);
+    const unsubscribeUrl = userId ? this.buildUnsubscribeUrl(userId) : null;
 
     let html = this.buildWeeklyMatchSummaryHtml(firstName, count, label);
     html = this.injectUrl(html);
     html = this.injectS3Url(html);
     html = this.injectSOcialMediaAndOfficialUrls(html);
+    // Inline unsubscribe URL placeholder — template can use {{unsubscribe_url}}
+    // in a footer link. Weekly digest template doesn't currently have one, so
+    // this is preparation for a future template update; the List-Unsubscribe
+    // header is what actually satisfies Gmail + CAN-SPAM today.
+    if (unsubscribeUrl) {
+      html = html.replace(/{{\s*unsubscribe_url\s*}}/gi, unsubscribeUrl);
+    }
+    html = this.injectPreviewText(
+      html,
+      `You appeared in ${count} new ${label} this week on 2Connect.`,
+    );
 
     const textFallback =
       stripHtml(html) ||
@@ -396,6 +516,7 @@ export class MailService {
       html,
       textFallback,
       logContext: 'weekly-match-summary',
+      unsubscribeUrl: unsubscribeUrl || undefined,
     });
   }
 
@@ -432,6 +553,10 @@ export class MailService {
     html = this.injectSender(html, sender_name);
     html = this.injectS3Url(html);
     html = this.injectSOcialMediaAndOfficialUrls(html);
+    html = this.injectPreviewText(
+      html,
+      `${sender_name} sent you a message on 2Connect.`,
+    );
 
     const textFallback =
       stripHtml(html) ||
@@ -647,6 +772,7 @@ export class MailService {
           count: item.count,
           primaryCount: item.primaryCount,
           adjacentCount: item.adjacentCount,
+          userId: item.userId,
         },
         {
           removeOnComplete: true,
