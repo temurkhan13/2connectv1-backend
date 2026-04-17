@@ -17,14 +17,20 @@ export class WeeklyMatchEmailProcessor {
   @Process('weekly_match_summary')
   async handleWeeklyMatchSummary(job: Job<WeeklyMatchEmailJobPayload>): Promise<void> {
     this.logger.log(`||||| HANDLE WEEKLY MATCH JOB PROCESSOR |||||`);
-    const { email, firstName, count } = job.data;
-    this.logger.log({ email });
-    this.logger.log({ first_name: firstName });
-    this.logger.log({ count });
+    const { email, firstName, count, primaryCount, adjacentCount } = job.data;
+    this.logger.log({ email, first_name: firstName, count, primaryCount, adjacentCount });
 
-    this.logger.log(`Sending weekly match summary to ${email} (count=${count})`);
+    this.logger.log(
+      `Sending weekly match summary to ${email} (count=${count} primary=${primaryCount ?? 'n/a'} adjacent=${adjacentCount ?? 'n/a'})`,
+    );
 
-    const ok = await this.mailService.sendWeeklyMatchSummaryEmail(email, firstName, count);
+    const ok = await this.mailService.sendWeeklyMatchSummaryEmail(
+      email,
+      firstName,
+      count,
+      primaryCount,
+      adjacentCount,
+    );
 
     if (!ok) {
       this.logger.error(`Failed to send weekly summary to ${email}`);

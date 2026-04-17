@@ -19,6 +19,11 @@ export type WeeklyMatchEmailJobPayload = {
   email: string;
   firstName: string;
   count: number;
+  // Optional tier breakdown — populated by the aggregation once the AI
+  // matching pipeline sets `matches.reciprocal` (added Apr-17). Legacy
+  // queue entries without these fields render as a flat count.
+  primaryCount?: number;
+  adjacentCount?: number;
 };
 
 @Injectable()
@@ -336,28 +341,37 @@ export class MailService {
   }
 
   /**
-   * Send weekly match summary email:
-   * "Hey {firstName}, you appeared in X matches this week"
+   * Send weekly match summary email.
+   *
+   * Tier-aware: when primaryCount/adjacentCount are both provided and the
+   * user has at least one Adjacent match, the rendered label reads
+   * `"matches (N Primary · M Adjacent)"` so the email mirrors the dashboard
+   * tiering introduced Apr-17 (Follow-up 15). When the user has only
+   * Primary (or only Adjacent, or the breakdown isn't available), the label
+   * stays as the simple `match` / `matches` plural.
    */
   async sendWeeklyMatchSummaryEmail(
     email: string,
     firstName: string,
     count: number,
+    primaryCount?: number,
+    adjacentCount?: number,
   ): Promise<boolean> {
     this.logger.log(`SEND WEEKLY MATCH SUMMARY EMAIL`);
     this.logger.log({ email });
     this.logger.log({ first_name: firstName });
-    this.logger.log({ count });
-    const plural = count === 1 ? 'match' : 'matches';
+    this.logger.log({ count, primaryCount, adjacentCount });
 
-    let html = this.buildWeeklyMatchSummaryHtml(firstName, count, plural);
+    const label = buildMatchLabel(count, primaryCount, adjacentCount);
+
+    let html = this.buildWeeklyMatchSummaryHtml(firstName, count, label);
     html = this.injectUrl(html);
     html = this.injectS3Url(html);
     html = this.injectSOcialMediaAndOfficialUrls(html);
 
     const textFallback =
       stripHtml(html) ||
-      `Hey ${firstName || 'there'}, you appeared in ${count} ${plural} this week on ${
+      `Hey ${firstName || 'there'}, you appeared in ${count} ${label} this week on ${
         this.appName
       }.`;
 
@@ -451,9 +465,13 @@ export class MailService {
       onboarding_status: OnboardingStatusEnum.COMPLETED,
     };
 
-    // 1) Aggregate for user_a_id
+    // 1) Aggregate for user_a_id — group by reciprocal flag so we split
+    //    Primary (reciprocal=true) vs Adjacent (reciprocal=false) per user.
+    //    NULL reciprocal rows (pre-Apr-17 / goal not in reciprocity matrix)
+    //    are lumped into the "primary" bucket so legacy matches still show
+    //    up as a simple count.
     const resultsA = await this.matchModel.findAll({
-      attributes: ['user_a_id', [fn('COUNT', col('Match.id')), 'match_count']],
+      attributes: ['user_a_id', 'reciprocal', [fn('COUNT', col('Match.id')), 'match_count']],
       where: matchWhere,
       include: [
         {
@@ -464,14 +482,21 @@ export class MailService {
           required: true,
         },
       ],
-      group: ['user_a_id', 'userA.id', 'userA.email', 'userA.first_name', 'userA.last_name'],
+      group: [
+        'user_a_id',
+        'reciprocal',
+        'userA.id',
+        'userA.email',
+        'userA.first_name',
+        'userA.last_name',
+      ],
       raw: true,
     });
     this.logger.log({ result_a: resultsA.length });
 
-    // 2) Aggregate for user_b_id
+    // 2) Aggregate for user_b_id (same split)
     const resultsB = await this.matchModel.findAll({
-      attributes: ['user_b_id', [fn('COUNT', col('Match.id')), 'match_count']],
+      attributes: ['user_b_id', 'reciprocal', [fn('COUNT', col('Match.id')), 'match_count']],
       where: matchWhere,
       include: [
         {
@@ -482,7 +507,14 @@ export class MailService {
           required: true,
         },
       ],
-      group: ['user_b_id', 'userB.id', 'userB.email', 'userB.first_name', 'userB.last_name'],
+      group: [
+        'user_b_id',
+        'reciprocal',
+        'userB.id',
+        'userB.email',
+        'userB.first_name',
+        'userB.last_name',
+      ],
       raw: true,
     });
     this.logger.log({ result_b: resultsB.length });
@@ -493,6 +525,8 @@ export class MailService {
       firstName: string;
       lastName: string;
       count: number;
+      primaryCount: number;
+      adjacentCount: number;
     };
 
     const userMap = new Map<string, UserCount>();
@@ -503,10 +537,15 @@ export class MailService {
       firstName: string,
       lastName: string,
       delta: number,
+      reciprocal: boolean | null,
     ) => {
+      const primaryDelta = reciprocal === false ? 0 : delta; // true or null
+      const adjacentDelta = reciprocal === false ? delta : 0;
       const existing = userMap.get(userId);
       if (existing) {
         existing.count += delta;
+        existing.primaryCount += primaryDelta;
+        existing.adjacentCount += adjacentDelta;
       } else {
         userMap.set(userId, {
           userId,
@@ -514,6 +553,8 @@ export class MailService {
           firstName,
           lastName,
           count: delta,
+          primaryCount: primaryDelta,
+          adjacentCount: adjacentDelta,
         });
       }
     };
@@ -526,6 +567,7 @@ export class MailService {
         row['userA.first_name'],
         row['userA.last_name'],
         Number(row.match_count) || 0,
+        row.reciprocal === null || row.reciprocal === undefined ? null : Boolean(row.reciprocal),
       );
     }
     this.logger.log({ upserting_result_a: true });
@@ -538,6 +580,7 @@ export class MailService {
         row['userB.first_name'],
         row['userB.last_name'],
         Number(row.match_count) || 0,
+        row.reciprocal === null || row.reciprocal === undefined ? null : Boolean(row.reciprocal),
       );
     }
     this.logger.log({ upserting_result_b: true });
@@ -572,12 +615,14 @@ export class MailService {
 
     this.logger.log(`Enqueuing weekly match emails for ${userMap.size} users`);
 
-    // 3) Enqueue a job per user
+    // 3) Enqueue a job per user (carries tier breakdown for template rendering)
     for (const [, item] of userMap) {
       this.logger.log({
         email: item.email,
         firstName: item.firstName,
         count: item.count,
+        primaryCount: item.primaryCount,
+        adjacentCount: item.adjacentCount,
       });
       if (!item.count) continue;
       this.logger.log(`adding to queue`);
@@ -587,6 +632,8 @@ export class MailService {
           email: item.email,
           firstName: item.firstName,
           count: item.count,
+          primaryCount: item.primaryCount,
+          adjacentCount: item.adjacentCount,
         },
         {
           removeOnComplete: true,
@@ -608,4 +655,47 @@ function stripHtml(html: string): string {
     ?.replace(/<[^>]+>/g, ' ')
     ?.replace(/\s+/g, ' ')
     ?.trim();
+}
+
+/**
+ * Build the {{match_label}} string for the weekly summary email.
+ *
+ * Rules:
+ *   - count == 1 + no tier split                       -> "match"
+ *   - count > 1  + no tier split                       -> "matches"
+ *   - has adjacent (both primary > 0 AND adjacent > 0) -> "matches (N Primary · M Adjacent)"
+ *   - only primary (primary == count, adjacent == 0)   -> "matches" (no need to decorate)
+ *   - only adjacent (primary == 0, adjacent == count)  -> "matches (N Adjacent)"
+ *
+ * The breakdown is only rendered when both tiers are present OR when the
+ * entire set is Adjacent (minority case). Pure-Primary summaries keep the
+ * simple wording because Primary is the default expectation.
+ */
+export function buildMatchLabel(
+  count: number,
+  primaryCount?: number,
+  adjacentCount?: number,
+): string {
+  const plural = count === 1 ? 'match' : 'matches';
+
+  if (
+    typeof primaryCount !== 'number' ||
+    typeof adjacentCount !== 'number' ||
+    primaryCount + adjacentCount === 0
+  ) {
+    return plural;
+  }
+
+  // Both tiers present
+  if (primaryCount > 0 && adjacentCount > 0) {
+    return `${plural} (${primaryCount} Primary · ${adjacentCount} Adjacent)`;
+  }
+
+  // Only-adjacent edge case
+  if (primaryCount === 0 && adjacentCount > 0) {
+    return `${plural} (${adjacentCount} Adjacent)`;
+  }
+
+  // Only-primary (or breakdown matches count) — keep wording simple
+  return plural;
 }

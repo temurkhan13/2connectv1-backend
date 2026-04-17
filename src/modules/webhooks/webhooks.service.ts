@@ -918,4 +918,79 @@ export class WebhooksService {
       message: `Verified ${affectedCount} users`,
     };
   }
+
+  /**
+   * handleSesEvent
+   * -----------------------------------------------------------
+   * Process a single SES notification delivered via SNS.
+   * Event shape is the SES "Notification" JSON documented at
+   * https://docs.aws.amazon.com/ses/latest/dg/event-publishing-retrieving-sns-contents.html
+   *
+   * Permanent bounces   -> is_email_verified=false + email_notifications=false
+   *                       (we can't reach them; stop sending)
+   * Transient bounces   -> no DB change (may recover; SES auto-retries + suppression list handles it)
+   * Complaints          -> email_notifications=false (user marked us as spam)
+   * Delivery events     -> log only
+   * All others          -> log only
+   *
+   * SES already auto-suppresses hard-bounced addresses at the account level,
+   * so this handler's primary purpose is in-app UX (surfacing the state to
+   * the user) + stopping the weekly digest + tracing for operations.
+   */
+  async handleSesEvent(event: any): Promise<{ status: string; affected?: number }> {
+    const type = event?.eventType || event?.notificationType || 'unknown';
+    const mail = event?.mail || {};
+    const source = mail?.source;
+    const messageId = mail?.messageId;
+    this.logger.log(`[SES] event=${type} messageId=${messageId} source=${source}`);
+
+    if (type === 'Bounce') {
+      const bounceType = event?.bounce?.bounceType; // 'Permanent' | 'Transient' | 'Undetermined'
+      const recipients: Array<{ emailAddress?: string }> =
+        event?.bounce?.bouncedRecipients || [];
+      if (bounceType !== 'Permanent') {
+        this.logger.log(`[SES] transient bounce for ${recipients.length} recipient(s); no DB change`);
+        return { status: 'logged', affected: 0 };
+      }
+      let affected = 0;
+      for (const r of recipients) {
+        const addr = (r.emailAddress || '').toLowerCase();
+        if (!addr) continue;
+        const [count] = await this.userModel.update(
+          { is_email_verified: false, email_notifications: false },
+          { where: { email: addr } },
+        );
+        affected += count;
+        this.logger.warn(`[SES] hard-bounce: ${addr} (rows_updated=${count})`);
+      }
+      return { status: 'bounce_processed', affected };
+    }
+
+    if (type === 'Complaint') {
+      const recipients: Array<{ emailAddress?: string }> =
+        event?.complaint?.complainedRecipients || [];
+      const feedback = event?.complaint?.complaintFeedbackType || 'unknown';
+      let affected = 0;
+      for (const r of recipients) {
+        const addr = (r.emailAddress || '').toLowerCase();
+        if (!addr) continue;
+        const [count] = await this.userModel.update(
+          { email_notifications: false },
+          { where: { email: addr } },
+        );
+        affected += count;
+        this.logger.warn(`[SES] complaint (${feedback}): ${addr} (rows_updated=${count})`);
+      }
+      return { status: 'complaint_processed', affected };
+    }
+
+    if (type === 'Delivery') {
+      const recipients: string[] = event?.delivery?.recipients || [];
+      this.logger.log(`[SES] delivery confirmed for ${recipients.length} recipient(s)`);
+      return { status: 'logged', affected: 0 };
+    }
+
+    this.logger.log(`[SES] unhandled event type: ${type}`);
+    return { status: 'ignored', affected: 0 };
+  }
 }
