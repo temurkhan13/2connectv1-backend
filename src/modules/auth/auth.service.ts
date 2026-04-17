@@ -160,6 +160,7 @@ export class AuthService {
       const response = await this.mailService.sendAccountVerificationEmail(
         signupDto.email,
         verificationCode.code,
+        signupDto.first_name || user.first_name,
       );
       this.logger.log({ response_from_send_verification_email: response });
 
@@ -319,6 +320,7 @@ export class AuthService {
       const response = await this.mailService.sendAccountVerificationEmail(
         email,
         verificationCode.code,
+        user.first_name,
       );
       this.logger.log({ response_from_resend_verification_code_email: response });
 
@@ -862,6 +864,7 @@ export class AuthService {
       const response = await this.mailService.sendForgotPasswordEmail(
         user.email,
         verificationCode.code,
+        user.first_name,
       );
 
       this.logger.log({ response_from_forgot_password_email: response });

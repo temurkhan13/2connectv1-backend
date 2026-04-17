@@ -59,15 +59,26 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       'GlobalExceptionFilter',
     );
 
-    // Send JSON error response
-    response.status(status).json({
+    // Base response body
+    const body: Record<string, any> = {
       code: status,
       message: Array.isArray(message) ? message : message || 'Something went wrong',
       result: null,
-      // timestamp: new Date().toISOString(),
-      // path: request.url,
-      // method: request.method,
-      // requestId: request.headers['x-request-id'] || undefined,
-    });
+    };
+
+    // Enrich 429 Too Many Requests with machine-readable fields.
+    // The throttler guard already sets a Retry-After header before this
+    // filter runs; mirror it into the body so clients that read JSON
+    // (mobile app, frontend) don't need to inspect headers separately.
+    if (status === HttpStatus.TOO_MANY_REQUESTS) {
+      body.error_code = 'rate_limited';
+      const retryAfterHeader = response.getHeader('Retry-After');
+      const retryAfterSeconds = Number(retryAfterHeader);
+      if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0) {
+        body.retry_after_seconds = retryAfterSeconds;
+      }
+    }
+
+    response.status(status).json(body);
   }
 }

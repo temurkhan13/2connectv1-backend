@@ -197,11 +197,6 @@ export const newMessageTemplate = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 
       }
     </style>
     <!--[if !mso]>-->
-    <link
-      href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@500&amp;family=Urbanist:wght@500;600;700&amp;family=Inter:wght@500&amp;display=swap"
-      rel="stylesheet"
-      type="text/css"
-    />
     <!--<![endif]-->
     <!--[if mso]>
       <xml>
@@ -651,7 +646,7 @@ export const newMessageTemplate = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 
                                                   style="
                                                     margin: 0;
                                                     margin: 0;
-                                                    font-family: Ubuntu,
+                                                    font-family: Arial,
                                                       BlinkMacSystemFont,
                                                       Segoe UI, Helvetica Neue,
                                                       Arial, sans-serif;
@@ -728,7 +723,7 @@ export const newMessageTemplate = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 
                                                   style="
                                                     margin: 0;
                                                     margin: 0;
-                                                    font-family: Urbanist,
+                                                    font-family: Arial,
                                                       BlinkMacSystemFont,
                                                       Segoe UI, Helvetica Neue,
                                                       Arial, sans-serif;
@@ -804,7 +799,7 @@ export const newMessageTemplate = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 
                                                   style="
                                                     margin: 0;
                                                     margin: 0;
-                                                    font-family: Urbanist,
+                                                    font-family: Arial,
                                                       BlinkMacSystemFont,
                                                       Segoe UI, Helvetica Neue,
                                                       Arial, sans-serif;
@@ -926,7 +921,7 @@ export const newMessageTemplate = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 
                                                       <tr>
                                                         <td
                                                           style="
-                                                            font-family: Urbanist,
+                                                            font-family: Arial,
                                                               BlinkMacSystemFont,
                                                               Segoe UI,
                                                               Helvetica Neue,
@@ -1010,7 +1005,7 @@ export const newMessageTemplate = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 
                                                   style="
                                                     margin: 0;
                                                     margin: 0;
-                                                    font-family: Urbanist,
+                                                    font-family: Arial,
                                                       BlinkMacSystemFont,
                                                       Segoe UI, Helvetica Neue,
                                                       Arial, sans-serif;
@@ -1086,7 +1081,7 @@ export const newMessageTemplate = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 
                                                   style="
                                                     margin: 0;
                                                     margin: 0;
-                                                    font-family: Urbanist,
+                                                    font-family: Arial,
                                                       BlinkMacSystemFont,
                                                       Segoe UI, Helvetica Neue,
                                                       Arial, sans-serif;
@@ -1332,6 +1327,49 @@ export const newMessageTemplate = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 
                                                             </tr>
                                                           </table>
                                                         </td>
+                                                        <td
+                                                          class="t92y"
+                                                          width="24"
+                                                          valign="middle"
+                                                          style="padding-left:5.23px;"
+                                                        >
+                                                          <table
+                                                            role="presentation"
+                                                            width="100%"
+                                                            cellpadding="0"
+                                                            cellspacing="0"
+                                                            class="t91y"
+                                                            style="width: 24px"
+                                                          >
+                                                            <tr>
+                                                              <td class="t90y">
+                                                                <a
+                                                                  href="{{youtube_url}}"
+                                                                  target="_blank"
+                                                                  style="
+                                                                    font-size: 0px;
+                                                                  "
+                                                                >
+                                                                  <img
+                                                                    class="t89y"
+                                                                    style="
+                                                                      display: block;
+                                                                      border: 0;
+                                                                      height: auto;
+                                                                      width: 100%;
+                                                                      margin: 0;
+                                                                      max-width: 100%;
+                                                                    "
+                                                                    width="24"
+                                                                    height="24"
+                                                                    alt="YouTube"
+                                                                    src="{{s3_public_url}}youtube.png"
+                                                                  />
+                                                                </a>
+                                                              </td>
+                                                            </tr>
+                                                          </table>
+                                                        </td>
                                                         <td></td>
                                                       </tr>
                                                     </table>
@@ -1394,7 +1432,7 @@ export const newMessageTemplate = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 
                                                   style="
                                                     margin: 0;
                                                     margin: 0;
-                                                    font-family: Inter,
+                                                    font-family: Arial,
                                                       BlinkMacSystemFont,
                                                       Segoe UI, Helvetica Neue,
                                                       Arial, sans-serif;
@@ -1471,7 +1509,7 @@ export const newMessageTemplate = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 
                                                   style="
                                                     margin: 0;
                                                     margin: 0;
-                                                    font-family: Inter,
+                                                    font-family: Arial,
                                                       BlinkMacSystemFont,
                                                       Segoe UI, Helvetica Neue,
                                                       Arial, sans-serif;
@@ -1587,7 +1625,7 @@ If you ever need assistance or want to share feedback, our team is always here f
                                                                   style="
                                                                     margin: 0;
                                                                     margin: 0;
-                                                                    font-family: Urbanist,
+                                                                    font-family: Arial,
                                                                       BlinkMacSystemFont,
                                                                       Segoe UI,
                                                                       Helvetica
@@ -1640,7 +1678,7 @@ If you ever need assistance or want to share feedback, our team is always here f
                                                                   style="
                                                                     margin: 0;
                                                                     margin: 0;
-                                                                    font-family: Urbanist,
+                                                                    font-family: Arial,
                                                                       BlinkMacSystemFont,
                                                                       Segoe UI,
                                                                       Helvetica
@@ -1694,7 +1732,7 @@ If you ever need assistance or want to share feedback, our team is always here f
                                                                   style="
                                                                     margin: 0;
                                                                     margin: 0;
-                                                                    font-family: Urbanist,
+                                                                    font-family: Arial,
                                                                       BlinkMacSystemFont,
                                                                       Segoe UI,
                                                                       Helvetica
@@ -1747,7 +1785,7 @@ If you ever need assistance or want to share feedback, our team is always here f
                                                                     margin: 0;
                                                                     margin: 0;
                                                                     padding: 0;
-                                                                    font-family: Urbanist,
+                                                                    font-family: Arial,
                                                                       BlinkMacSystemFont,
                                                                       Segoe UI,
                                                                       Helvetica

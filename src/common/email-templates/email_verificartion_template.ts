@@ -22,7 +22,6 @@ export const VerifyEmailTemplate = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0
       }
     </style>
     <!--[if !mso]><!-->
-    <link href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@500&family=Urbanist:wght@600;700&display=swap" rel="stylesheet" type="text/css" />
     <!--<![endif]-->
   </head>
   <body style="margin:0; padding:0; background-color:#ffffff;">
@@ -63,17 +62,17 @@ export const VerifyEmailTemplate = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0
               <!-- Title (icon removed) -->
               <tr>
                 <td class="px" align="center" style="padding:28px 24px 0 24px;">
-                  <h1 style="margin:0; font:500 24px Ubuntu, Arial, sans-serif; color:#190D57; line-height:32px;">Verify your email</h1>
+                  <h1 style="margin:0; font:500 24px Arial, Arial, sans-serif; color:#190D57; line-height:32px;">Verify your email</h1>
                 </td>
               </tr>
 
               <!-- Intro -->
               <tr>
                 <td class="px" style="padding:16px 24px 0 24px;">
-                  <p style="margin:0; font:500 14px Urbanist, Arial, sans-serif; color:#364151; line-height:20px;">
-                    Hi,
+                  <p style="margin:0; font:500 14px Arial, Arial, sans-serif; color:#364151; line-height:20px;">
+                    Hi {{name}},
                   </p>
-                  <p style="margin:8px 0 0 0; font:500 14px Urbanist, Arial, sans-serif; color:#364151; line-height:20px;">
+                  <p style="margin:8px 0 0 0; font:500 14px Arial, Arial, sans-serif; color:#364151; line-height:20px;">
                     Use the code below to confirm your email for 2Connect. This code will expire soon.
                   </p>
                 </td>
@@ -83,12 +82,12 @@ export const VerifyEmailTemplate = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0
               <tr>
                 <td class="px" align="center" style="padding:20px 24px 0 24px;">
                   <div style="display:inline-block; background:#F7F5FF; border:1px solid #E8E4FB; border-radius:12px; padding:14px 18px;">
-                    <code style="font:700 24px 'Urbanist', Arial, sans-serif; letter-spacing:4px; color:#190D57;">
+                    <code style="font:700 24px 'Arial', Arial, sans-serif; letter-spacing:4px; color:#190D57;">
                       {{code}}
                     </code>
                   </div>
                   <div style="height:8px; line-height:8px; font-size:8px;">&nbsp;</div>
-                  <p style="margin:0; font:500 12px Urbanist, Arial, sans-serif; color:#6D717F; line-height:18px;">
+                  <p style="margin:0; font:500 12px Arial, Arial, sans-serif; color:#6D717F; line-height:18px;">
                     Enter this code in the app to verify your email.
                   </p>
                 </td>
@@ -97,7 +96,7 @@ export const VerifyEmailTemplate = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0
               <!-- Help / Safety copy -->
               <tr>
                 <td class="px" style="padding:20px 24px 0 24px;">
-                  <p style="margin:0; font:500 12px Inter, Arial, sans-serif; color:#4A5462; line-height:18px;">
+                  <p style="margin:0; font:500 12px Arial, Arial, sans-serif; color:#4A5462; line-height:18px;">
                     Didn’t request this? You can ignore this email. For help, contact
                     <a href="mailto:{{
                       support_email
@@ -166,7 +165,7 @@ export const VerifyEmailTemplate = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0
               <!-- Footer (short) -->
               <tr>
                 <td class="px" align="center" style="padding:16px 24px 24px 24px; border-top:1px solid #F4F2FD;">
-                  <p style="margin:0; font:500 10px Inter, Arial, sans-serif; color:#4A5462; line-height:16px;">
+                  <p style="margin:0; font:500 10px Arial, Arial, sans-serif; color:#4A5462; line-height:16px;">
                     © 2026 2Connect. All rights reserved.
                     &nbsp;&middot;&nbsp;<a href="{{privacy_url}}" style="color:#267791; font-weight:600;">Privacy policy</a>
                     &nbsp;&middot;&nbsp;<a href="{{terms_url}}" style="color:#267791; font-weight:600;">Terms</a>

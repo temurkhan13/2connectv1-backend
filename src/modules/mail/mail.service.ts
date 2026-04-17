@@ -365,20 +365,32 @@ export class MailService {
   /**
    * Send account verification email.
    */
-  async sendAccountVerificationEmail(email: string, code: string): Promise<boolean> {
+  async sendAccountVerificationEmail(
+    email: string,
+    code: string,
+    firstName?: string,
+  ): Promise<boolean> {
     this.logger.log(`SEND ACCOUNT VERIFICATION EMAIL`);
     this.logger.log({ email });
     this.logger.log({ code });
     let html = this.injectCode(VerifyEmailTemplate, code);
+    html = this.injectName(html, firstName || 'there');
     html = this.injectS3Url(html);
     html = this.injectSOcialMediaAndOfficialUrls(html);
     html = this.injectPreviewText(
       html,
       `Your 2Connect verification code: ${code}. Expires soon.`,
     );
+    // Dedicated plain-text body — not stripped HTML, reads naturally in the
+    // rare clients that show text/plain part.
+    const name = firstName || 'there';
     const textFallback =
-      stripHtml(html) ||
-      `${this.appName} verification code: ${code}. If you cannot view HTML, use this code in the app.`;
+      `Hi ${name},\n\n` +
+      `Use this code to verify your email for 2Connect:\n\n` +
+      `    ${code}\n\n` +
+      `This code will expire soon. If you didn't request this, you can safely ignore this email.\n\n` +
+      `Need help? Reply to support@2connect.ai\n\n` +
+      `— The 2Connect Team`;
 
     const subject = `${this.appName} — Verify your email`;
 
@@ -394,12 +406,17 @@ export class MailService {
   /**
    * Send forgot-password email.
    */
-  async sendForgotPasswordEmail(email: string, code: string): Promise<boolean> {
+  async sendForgotPasswordEmail(
+    email: string,
+    code: string,
+    firstName?: string,
+  ): Promise<boolean> {
     this.logger.log(`SEND FORGOT PASSWORD EMAIL`);
     this.logger.log({ email });
     this.logger.log({ code });
 
     let html = this.injectCode(forgotPasswordTemplate, code);
+    html = this.injectName(html, firstName || 'there');
     html = this.injectS3Url(html);
     html = this.injectSOcialMediaAndOfficialUrls(html);
     html = this.injectPreviewText(
@@ -407,9 +424,14 @@ export class MailService {
       `Your 2Connect password reset code: ${code}. Expires soon.`,
     );
 
+    const name = firstName || 'there';
     const textFallback =
-      stripHtml(html) ||
-      `${this.appName} password reset code: ${code}. If you cannot view HTML, use this code in the app.`;
+      `Hi ${name},\n\n` +
+      `Use this code to reset your 2Connect password:\n\n` +
+      `    ${code}\n\n` +
+      `This code will expire soon. If you didn't request a password reset, you can safely ignore this email.\n\n` +
+      `Need help? Reply to support@2connect.ai\n\n` +
+      `— The 2Connect Team`;
 
     const subject = `${this.appName} — Reset your password`;
 
@@ -445,9 +467,12 @@ export class MailService {
       `${approver_name} is waiting for your response on 2Connect.`,
     );
 
+    const frontendUrl = process.env.FRONT_END_BASE_URL || 'https://app.2connect.ai';
     const textFallback =
-      stripHtml(html) ||
-      `${this.appName}: Hello ${name}, your request is awaiting your response/approval. Please open the app to continue.`;
+      `Hi ${name || 'there'},\n\n` +
+      `${approver_name} is waiting for your response on 2Connect.\n\n` +
+      `Open the app to respond: ${frontendUrl}\n\n` +
+      `— The 2Connect Team`;
 
     const subject = `${this.appName} — Awaiting your response`;
 
@@ -502,11 +527,16 @@ export class MailService {
       `You appeared in ${count} new ${label} this week on 2Connect.`,
     );
 
+    const frontendUrl = process.env.FRONT_END_BASE_URL || 'https://app.2connect.ai';
+    const unsubLine = unsubscribeUrl
+      ? `\n\nUnsubscribe from these emails: ${unsubscribeUrl}`
+      : '';
     const textFallback =
-      stripHtml(html) ||
-      `Hey ${firstName || 'there'}, you appeared in ${count} ${label} this week on ${
-        this.appName
-      }.`;
+      `Hey ${firstName || 'there'},\n\n` +
+      `You appeared in ${count} new ${label} this week on 2Connect.\n\n` +
+      `See your matches: ${frontendUrl}/matches\n\n` +
+      `— The 2Connect Team` +
+      unsubLine;
 
     const subject = `${this.appName} — Your weekly match summary`;
 
@@ -558,11 +588,12 @@ export class MailService {
       `${sender_name} sent you a message on 2Connect.`,
     );
 
+    const frontendUrl = process.env.FRONT_END_BASE_URL || 'https://app.2connect.ai';
     const textFallback =
-      stripHtml(html) ||
-      `Hi ${receiver_name || ''}, you have a new message on ${
-        this.appName
-      }. Please open the app to read it.`;
+      `Hi ${receiver_name || 'there'},\n\n` +
+      `${sender_name} sent you a message on 2Connect.\n\n` +
+      `Read it in the app: ${frontendUrl}/chat\n\n` +
+      `— The 2Connect Team`;
 
     const subject = `${this.appName} — You have a new message`;
 
