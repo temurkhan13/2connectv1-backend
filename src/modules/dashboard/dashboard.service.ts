@@ -203,9 +203,11 @@ export class DashboardService {
         'user_b_decision',
         'user_a_feedback',
         'user_b_feedback',
+        // Apr-17 Phase 2b: primary_goal reciprocity flag for dashboard tier split
+        'reciprocal',
         [
           this.sequelize.literal(
-            `CASE 
+            `CASE
              WHEN "Match"."user_a_id" = ${uid} THEN "userB"."id"
              ELSE "userA"."id"
            END`,
@@ -1941,6 +1943,8 @@ export class DashboardService {
         talking_points: match.talking_points || [],
         score_breakdown: match.score_breakdown || null,
         match_tier: derivedTier,
+        // Apr-17 Phase 2b: primary_goal reciprocity flag (Primary/Adjacent tier signal)
+        reciprocal: match.reciprocal ?? null,
         generated_at: match.explanation.generated_at || new Date().toISOString(),
         cached: true,
       };
@@ -1988,6 +1992,8 @@ export class DashboardService {
       talking_points: aiResponse.talking_points,
       score_breakdown: aiResponse.score_breakdown || null,
       match_tier: derivedTier,
+      // Apr-17 Phase 2b: reciprocity flag (preserve stored value, AI re-gen does not recompute it)
+      reciprocal: match.reciprocal ?? null,
       generated_at: generatedAt,
       cached: false,
     };
