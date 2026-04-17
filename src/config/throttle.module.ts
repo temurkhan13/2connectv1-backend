@@ -1,6 +1,11 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { ThrottlerModule as BaseThrottlerModule, ThrottlerModuleOptions } from '@nestjs/throttler';
+import {
+  ThrottlerModule as BaseThrottlerModule,
+  ThrottlerModuleOptions,
+  ThrottlerGuard,
+} from '@nestjs/throttler';
 
 /**
  * Purpose
@@ -53,6 +58,13 @@ import { ThrottlerModule as BaseThrottlerModule, ThrottlerModuleOptions } from '
         };
       },
     }),
+  ],
+  providers: [
+    // Register the throttler as a global guard so @Throttle() / @SkipThrottle()
+    // decorators on individual routes actually take effect. Without this,
+    // the module is loaded but never enforces anything — @Throttle is just
+    // metadata the runtime ignores.
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
   ],
   // Re-exports the configured Throttler module
   exports: [BaseThrottlerModule],
