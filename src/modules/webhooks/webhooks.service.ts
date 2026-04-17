@@ -389,6 +389,7 @@ export class WebhooksService {
       headline?: string | null;
       key_points?: string[] | null;
       score_breakdown?: Record<string, number> | null;
+      reciprocal?: boolean | null;
     };
 
     const incoming: InPair[] = [];
@@ -419,6 +420,12 @@ export class WebhooksService {
           headline: (m as any)?.headline ?? null,
           key_points: (m as any)?.key_points ?? null,
           score_breakdown: (m as any)?.score_breakdown ?? null,
+          // Apr-17 Phase 2: reciprocal flag from AI matching (da246c3).
+          // Value semantics:
+          //   true  → Primary match (direct value exchange via primary_goal)
+          //   false → Adjacent match (SOFT-fallback backfill candidate)
+          //   null  → not evaluable (unknown goal / missing slot / legacy)
+          reciprocal: (m as any)?.reciprocal ?? null,
         });
 
         allUserIds.add(ua);
@@ -519,6 +526,7 @@ export class WebhooksService {
             friction_points: p.friction_points ?? [],
             talking_points: p.talking_points ?? [],
             score_breakdown: (p as any).score_breakdown ?? null,
+            reciprocal: (p as any).reciprocal ?? null,
             created_at: now,
             updated_at: now,
           }));

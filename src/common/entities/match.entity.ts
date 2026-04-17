@@ -244,6 +244,18 @@ export class Match extends Model {
   })
   declare match_tier: MatchTierEnum | null;
 
+  // === Apr-17: Primary-goal reciprocity flag (Phase 1 + Phase 2a) ===
+  @Column({
+    type: DataType.BOOLEAN,
+    allowNull: true,
+    comment:
+      'Primary-goal reciprocity flag from AI matching pipeline: ' +
+      'true = direct value exchange (Primary match), ' +
+      'false = adjacent backfill (Adjacent match, SOFT fallback mode), ' +
+      'null = not evaluable (unknown user_goal, missing slot, or match pre-dates the feature).',
+  })
+  declare reciprocal: boolean | null;
+
   @CreatedAt
   @Column({
     type: DataType.DATE,
