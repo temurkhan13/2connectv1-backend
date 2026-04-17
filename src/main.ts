@@ -48,6 +48,14 @@ async function bootstrap() {
     // CORS: allow cross-origin calls
     app.enableCors({
       origin: [
+        // Apr-17 Phase 2c: production apex subdomains
+        'https://app.2connect.ai',       // frontend
+        'https://api.2connect.ai',       // API itself (for tools that self-call)
+        'https://ai.2connect.ai',        // AI service (for direct calls)
+        // Marketing site may initiate signup navigations
+        'https://2connect.ai',
+        'https://www.2connect.ai',
+        // Legacy / staging aliases (kept so pre-migration bookmarks keep working)
         'https://uat.2connect.ai',
         'https://ai.uat.2connect.ai',
         'https://admin.uat.2connect.ai',
