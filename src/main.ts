@@ -34,6 +34,12 @@ async function bootstrap() {
       bufferLogs: true,
     });
 
+    // Trust proxy: the backend sits behind CloudFront, so req.ip defaults to
+    // the edge's IP (every request would look like the same client). Trusting
+    // one hop makes Express read X-Forwarded-For and set req.ip to the real
+    // client IP — required for per-IP rate limiting to mean anything.
+    app.getHttpAdapter().getInstance().set('trust proxy', 1);
+
     // Global limit for all requests
     app.use(json({ limit: '2mb' }));
     app.use(urlencoded({ extended: true, limit: '2mb' }));

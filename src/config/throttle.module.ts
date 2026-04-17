@@ -16,8 +16,12 @@ import { ThrottlerModule as BaseThrottlerModule, ThrottlerModuleOptions } from '
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (config: ConfigService): ThrottlerModuleOptions => {
-        // Read TTL and request limit from environment
-        const ttl = Number(config.get<number>('THROTTLE_TTL') ?? 60); // time window in seconds
+        // Read TTL and request limit from environment.
+        // @nestjs/throttler v5 takes ttl in MILLISECONDS (this was previously
+        // passed raw from an env var named THROTTLE_TTL that documented itself
+        // as "seconds", so the effective window was 60ms — essentially no
+        // throttling). Multiply by 1000 to get the intended window.
+        const ttl = Number(config.get<number>('THROTTLE_TTL') ?? 60) * 1000;
         const limit = Number(config.get<number>('THROTTLE_LIMIT') ?? 10); // max requests per window
         const isTest = config.get<string>('NODE_ENV') === 'test';
 

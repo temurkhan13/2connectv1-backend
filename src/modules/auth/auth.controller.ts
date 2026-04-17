@@ -1,9 +1,19 @@
 import { Controller, Post, Body, Res, UseGuards, Request, HttpCode } from '@nestjs/common';
 import { ApiTags, ApiResponse, ApiBody, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
+import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { AuthService } from 'src/modules/auth/auth.service';
 import { RESPONSES } from 'src/common/responses';
+
+/**
+ * Tight rate limit for code-issuing auth endpoints.
+ * 5 requests per 60-second window per client IP (requires `trust proxy`
+ * so req.ip reflects the real client, not CloudFront's edge IP).
+ * Blocks OTP enumeration / brute-force reset-code attacks while staying
+ * well under what a legitimate user would ever need.
+ */
+const AUTH_SENSITIVE_THROTTLE = { default: { limit: 5, ttl: 60_000 } } as const;
 import {
   SigninDto,
   SignupDto,
@@ -40,6 +50,7 @@ export class AuthController {
    * Returns safe user fields and email verification metadata.
    */
   @Post('signup')
+  @Throttle(AUTH_SENSITIVE_THROTTLE)
   @ApiBody({ type: SignupDto })
   @ApiResponse({
     status: RESPONSES.signupSuccessResponse.code,
@@ -53,8 +64,11 @@ export class AuthController {
   })
   async register(@Body() signupDto: SignupDto, @Res({ passthrough: true }) res: Response) {
     const response = await this.authService.register(signupDto);
-    const { user, email_verification_code, expires_at } = response;
-
+    const { user } = response;
+    // OTP is never returned in the HTTP response body regardless of env.
+    // Local dev can read the code from backend logs or the DB if inbox
+    // access isn't available. This closes the response-body side channel
+    // entirely instead of relying on NODE_ENV being set correctly.
     return {
       user: {
         id: user.id,
@@ -64,9 +78,8 @@ export class AuthController {
         is_email_verified: user.is_email_verified,
         role: user.role,
       },
-      email_verification_code:
-        process.env.NODE_ENV === 'production' ? null : email_verification_code,
-      expires_at: process.env.NODE_ENV === 'production' ? null : expires_at,
+      email_verification_code: null,
+      expires_at: null,
     };
   }
 
@@ -107,19 +120,18 @@ export class AuthController {
     description: RESPONSES.resendVerificationCodeEmailAlreadyVerified.message,
     example: RESPONSES.resendVerificationCodeEmailAlreadyVerified,
   })
+  @Throttle(AUTH_SENSITIVE_THROTTLE)
   async resendVerification(
     @Body() body: ResendVerificationDto,
     @Res({ passthrough: true }) res: Response,
   ) {
     const response = await this.authService.resendVerificationCode(body.email);
-    // Mask the OTP in production — it should only reach the user via email.
-    // Dev keeps the code in the response so engineers don't need to open
-    // the mailbox every test. Matches the signup endpoint's pattern.
-    const isProd = process.env.NODE_ENV === 'production';
+    // OTP never returned in the HTTP response regardless of env — email is
+    // the only channel. See signup() for rationale.
     return {
       ...response,
-      email_verification_code: isProd ? null : response.email_verification_code,
-      expires_at: isProd ? null : response.expires_at,
+      email_verification_code: null,
+      expires_at: null,
     };
   }
 
@@ -140,6 +152,7 @@ export class AuthController {
     description: RESPONSES.signinIncorrectCredentials.message,
     example: RESPONSES.signinIncorrectCredentials,
   })
+  @Throttle(AUTH_SENSITIVE_THROTTLE)
   async signIn(@Body() signinDto: SigninDto, @Request() req, @Res({ passthrough: true }) res: Response) {
     const response = await this.authService.signin(signinDto, req.clientMetadata);
 
@@ -152,11 +165,9 @@ export class AuthController {
       });
 
     // Signin for an unverified user returns a fresh email_verification_code
-    // alongside user data. Mask the OTP in production for the same reason
-    // as signup / resend / forgot-password: code should only reach the
-    // legitimate recipient via email.
-    const isProd = process.env.NODE_ENV === 'production';
-    if (isProd && (response as any).email_verification_code) {
+    // alongside user data. Never echo the OTP in the HTTP response — email
+    // is the only legitimate channel for delivery.
+    if ((response as any).email_verification_code) {
       return {
         ...response,
         email_verification_code: null,
@@ -262,16 +273,16 @@ export class AuthController {
     description: RESPONSES.forgotPassworduccess.message,
     example: RESPONSES.forgotPassworduccess,
   })
+  @Throttle(AUTH_SENSITIVE_THROTTLE)
   async forgotPassword(@Body() dto: ForgotPasswordDto, @Res({ passthrough: true }) res: Response) {
     const response = await this.authService.forgotPassword(dto.email);
-    // Mask the reset code in production — anyone who knew an email could
-    // otherwise request the code and read it directly from the response
-    // body, bypassing the inbox-possession check entirely.
-    const isProd = process.env.NODE_ENV === 'production';
+    // Reset code never echoed in the HTTP response — the only way to learn
+    // it is by receiving the email. This, combined with the per-IP rate
+    // limit above, closes the enumeration + code-harvest attack surface.
     return {
       ...response,
-      password_reset_code: isProd ? null : response.password_reset_code,
-      expires_at: isProd ? null : response.expires_at,
+      password_reset_code: null,
+      expires_at: null,
     };
   }
 
