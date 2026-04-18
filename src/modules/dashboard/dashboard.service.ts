@@ -1973,6 +1973,16 @@ export class DashboardService {
       : 50;
 
     // 4) Update match with new explanation (cache it)
+    // Apr-19 Issue 6 fix ([[Apr-18]] Follow-up 27): preserve the existing
+    // DB-stored score_breakdown when the AI-service regeneration doesn't
+    // return one. Bob Investor's match had populated breakdown in DB but
+    // the Compatibility Breakdown widget didn't render — root cause was
+    // this UPDATE overwriting the stored breakdown with null when the
+    // AI explanation regen didn't include breakdown in its response
+    // payload. Fallback chain: aiResponse.score_breakdown →
+    // match.score_breakdown → null. Prevents data loss on refresh.
+    const preservedBreakdown =
+      aiResponse.score_breakdown || match.score_breakdown || null;
     await this.matchModel.update(
       {
         explanation: {
@@ -1982,7 +1992,7 @@ export class DashboardService {
         synergy_areas: aiResponse.synergy_areas,
         friction_points: aiResponse.friction_points,
         talking_points: aiResponse.talking_points,
-        score_breakdown: aiResponse.score_breakdown || null,
+        score_breakdown: preservedBreakdown,
         match_tier: aiResponse.match_tier,
       },
       { where: { id: matchId } },
@@ -1998,7 +2008,7 @@ export class DashboardService {
       synergy_areas: aiResponse.synergy_areas,
       friction_points: aiResponse.friction_points,
       talking_points: aiResponse.talking_points,
-      score_breakdown: aiResponse.score_breakdown || null,
+      score_breakdown: preservedBreakdown,
       match_tier: derivedTier,
       // Apr-17 Phase 2b: reciprocity flag (preserve stored value, AI re-gen does not recompute it)
       reciprocal: match.reciprocal ?? null,
