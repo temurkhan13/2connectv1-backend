@@ -1313,6 +1313,11 @@ export class DashboardService {
         'user_a_feedback',
         'user_b_feedback',
         'ai_to_ai_conversation',
+        // Apr-18 Follow-up 26: expose reciprocity flag on list endpoint so the
+        // frontend MatchListing can split Primary / Adjacent sections. Without
+        // this every card came back with reciprocal=undefined and the whole
+        // list fell through to the flat render path, hiding the feature.
+        'reciprocal',
 
         // other_user_id
         [
@@ -1401,6 +1406,9 @@ export class DashboardService {
 
         // ✅ now reads from boolean column
         is_ai_chat_initiated: Boolean(r.ai_to_ai_conversation),
+
+        // Apr-18 Follow-up 26: reciprocity flag (null for pre-feature matches)
+        reciprocal: r.reciprocal ?? null,
 
         other_user: {
           id: r.other_user_id,
