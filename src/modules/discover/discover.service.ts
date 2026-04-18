@@ -940,11 +940,21 @@ export class DiscoverService {
    * Remove personally identifiable information from text.
    */
   private removePII(text: string): string {
+    // Apr-18 Follow-up 27: dollar-amount substitution removed. The
+    // previous `replace(/\$[\d,]+.../, 'significant funding')` fired
+    // per-match on ranges like `$25K–$100K` (Mattia's persona) and
+    // `$10 million to $12 million` (John's persona), producing
+    // `significant funding–significant funding` / `significant funding
+    // to significant fundingi...` on Discover cards. Cheque sizes +
+    // fundraising targets are business-relevant match signal, not PII
+    // — the name-strip above already handles identity. Keeping the
+    // other PII rules (emails, usernames, company suffixes, long
+    // numbers). See [[Apr-18]] Follow-up 27 "Discover page verification"
+    // for the raw persona evidence + decision rationale.
     return text
       .replace(/\b[a-z]+[._][a-z]+\d*\b/gi, '') // username patterns
       .replace(/\bfor\s+[A-Z][a-z]+(\s+[A-Z][a-z]+)?\b/g, '') // "for John Smith"
       .replace(/\b(a |an |the )?[A-Z][a-zA-Z]+\s+(Inc|LLC|Ltd|Corp|Company|Co)\.?\b/gi, 'a company') // company names
-      .replace(/\$[\d,]+(\.\d{2})?(\s*(million|billion|M|B|K))?/gi, 'significant funding') // dollar amounts
       .replace(/\b\d{10,}\b/g, '') // long numbers
       .replace(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g, '') // emails
       .replace(/\[Name\]/gi, '')
