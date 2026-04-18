@@ -55,6 +55,31 @@ export class UserSummaries extends Model {
   })
   declare status: string;
 
+  /**
+   * Persona summary in markdown format (or legacy JSON for pre-Mar rows).
+   *
+   * STORAGE: raw. Includes the owner's real name in the `# Name` header
+   * line and any identifying details the persona LLM produced. Reading
+   * this field directly gives you the unredacted source.
+   *
+   * WHEN USED BY OWNER (profile self-view) — read raw. That is the only
+   * legitimate raw-text read path; see `profile.service.ts:getSummary`.
+   *
+   * WHEN USED BY ANYONE ELSE (Discover, admin dashboards, match preview
+   * overlays, email digests, analytics dumps shared outside the platform
+   * team, future cross-user surfaces) — you MUST route the value through
+   * `anonymizeForCrossUserView(summary)` from
+   * `src/common/utils/profile-anonymize.util.ts` before returning /
+   * rendering / forwarding it. That function handles markdown parsing,
+   * identity stripping, legacy JSON fallback, and PII scrub.
+   *
+   * See [[Apr-18]] Follow-up 27 (session log at
+   * `C:/Users/hp/2ConnectVault/Sessions/2026/04/Apr-18.md`) for why
+   * anonymization is a separate sanctioned utility rather than an
+   * automatic Sequelize getter: the owner's profile page legitimately
+   * needs raw text, and an implicit getter would have broken that read
+   * path.
+   */
   @Column({
     type: DataType.TEXT,
     allowNull: false,
