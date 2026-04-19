@@ -10,16 +10,102 @@ import {
   UseGuards,
   Req,
   Logger,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
+  HttpCode,
 } from '@nestjs/common';
+import * as multer from 'multer';
+import { FileInterceptor } from '@nestjs/platform-express';
+import type { Express } from 'express';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { ChatService } from './chat.service';
+import { S3Service } from 'src/common/utils/s3.service';
+
+// Apr-20 F/u 37: chat attachments replace Supabase Storage (staging bucket)
+// with S3 (production AWS). Allowed types cover common attach scenarios
+// from the mobile picker: images, PDFs, plain text. Max size generous vs
+// avatar (5MB) because chat supports richer docs.
+const CHAT_ATTACHMENT_MIME = new Set<string>([
+  'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/heic',
+  'application/pdf',
+  'text/plain', 'text/csv', 'text/markdown',
+]);
+const CHAT_ATTACHMENT_MAX_BYTES = 20 * 1024 * 1024; // 20 MB
 
 @Controller('chat')
 @UseGuards(JwtAuthGuard)
 export class ChatController {
   private readonly logger = new Logger(ChatController.name);
 
-  constructor(private readonly chatService: ChatService) {}
+  constructor(
+    private readonly chatService: ChatService,
+    private readonly s3: S3Service,
+  ) {}
+
+  /**
+   * POST /chat/upload-attachment
+   * Upload a chat file attachment to S3 and return its public URL.
+   *
+   * Replaces the prior Supabase Storage upload path (Apr-20 F/u 37) — mobile
+   * app was hitting staging Supabase `chat-attachments` bucket. Now routes
+   * through production AWS S3 via `S3Service` (same S3 bucket as avatars
+   * under a distinct `chat/{conversationId}/` key prefix).
+   *
+   * Inputs: JWT, multipart/form-data with `file`, body `conversationId`.
+   * Returns: { url, key, size, contentType }.
+   */
+  @Post('upload-attachment')
+  @HttpCode(200)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: multer.memoryStorage(),
+      limits: { fileSize: CHAT_ATTACHMENT_MAX_BYTES },
+      fileFilter: (req, file, cb) => {
+        if (!CHAT_ATTACHMENT_MIME.has(file.mimetype)) {
+          return cb(
+            new BadRequestException(
+              `Unsupported file type: ${file.mimetype}. Allowed: images, PDF, plain text.`,
+            ),
+            false,
+          );
+        }
+        cb(null, true);
+      },
+    }),
+  )
+  async uploadAttachment(
+    @UploadedFile() file: Express.Multer.File,
+    @Body('conversationId') conversationId: string,
+    @Req() req: any,
+  ) {
+    if (!file) throw new BadRequestException('File is required');
+    if (file.size > CHAT_ATTACHMENT_MAX_BYTES) {
+      throw new BadRequestException('File too large (max 20 MB)');
+    }
+    if (!conversationId) {
+      throw new BadRequestException('conversationId is required');
+    }
+
+    const result = await this.s3.uploadBuffer({
+      buffer: file.buffer,
+      contentType: file.mimetype,
+      originalName: file.originalname,
+      keyPrefix: `chat/${conversationId}/`,
+      acl: 'public-read',
+      cacheControl: 'public, max-age=31536000, immutable',
+    });
+
+    return {
+      success: true,
+      data: {
+        url: result.url,
+        key: result.key,
+        size: file.size,
+        contentType: file.mimetype,
+      },
+    };
+  }
 
   /**
    * GET /chat/conversations
