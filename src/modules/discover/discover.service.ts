@@ -256,6 +256,28 @@ export class DiscoverService {
         }
       }
 
+      // Source 4 (Apr-19 F/u 32 Issue #4): **Name** bold-wrapped first-line
+      // headers, optionally preceded by `#`/`##`. Fires only when DB name is
+      // missing (matches Source 2's gating) — pre-Fix-#4 personas for users
+      // whose `users.first_name`/`last_name` are empty AND whose persona
+      // header uses bold-asterisk-name format currently leak the name into
+      // Discover because Source 2 requires em-dash `—` and Source 3 requires
+      // a trailing single `*`. Real observation: #E782FF7A rendered
+      // "**Mehmood Hussain** Focus…" as leading prose. NAME_STRIP_STOPWORDS
+      // filters archetype words to prevent over-strip on bold archetypes
+      // like `**The Platform Builder**`.
+      if (!hasDbName) {
+        const boldHeaderMatch = rawSummary.match(/^#*\s*\*\*([^*\n]+?)\*\*/m);
+        if (boldHeaderMatch) {
+          for (const part of boldHeaderMatch[1].trim().split(/\s+/)) {
+            const clean = part.replace(/[^a-zA-Z'-]/g, '');
+            if (clean.length > 1 && !NAME_STRIP_STOPWORDS.has(clean.toLowerCase())) {
+              nameParts.add(clean);
+            }
+          }
+        }
+      }
+
       // Replace full name first (longest match), then individual parts
       const fullName = `${firstName} ${lastName}`.trim();
       if (fullName.length > 3) {
