@@ -475,68 +475,121 @@ export class WebhooksService {
           if (u.objective) objectiveById.set(u.id, u.objective);
         }
 
-        // 3) Identify the source user (user_a_id is consistent across all pairs)
-        //    and delete their old matches so we get a clean replacement
+        // 3) Identify the source user (user_a_id is consistent across all pairs).
+        //    UPSERT by (user_a_id, user_b_id) instead of clear+bulkCreate, so match
+        //    IDs are preserved across Phase 2 explanation-backfill re-syncs.
+        //
+        //    Apr-19 (Brian Limba test): previous clear+insert pattern caused every
+        //    Phase 2 batch sync to replace all 14 match IDs, invalidating any frontend
+        //    match list loaded mid-backfill. User saw "Unable to load explanation"
+        //    because GET /dashboard/match-explanation/:oldId returned 404 against a
+        //    refreshed row set. UPSERT fixes this: stable IDs + user decisions
+        //    (approved/passed) and user_feedback preserved across re-syncs.
+        //
+        //    Scope: we only touch matches where user_a_id = sourceUserId (the ones
+        //    this sync is authoritative for). Matches where the source user appears
+        //    as user_b_id belong to OTHER users' match lists and get refreshed by
+        //    their own syncs — leaving them alone eliminates the previous [Op.or]
+        //    reverse-direction deletion (which caused cross-user match-list churn).
         const sourceUserId = incoming[0]?.user_a_id;
+        let upserted: Match[] = [];
+
         if (sourceUserId) {
-          const deleted = await this.matchModel.destroy({
-            where: {
-              [Op.or]: [
-                { user_a_id: sourceUserId },
-                { user_b_id: sourceUserId },
-              ],
-            },
+          // 3a) Fetch existing matches for this source user
+          const existing = await this.matchModel.findAll({
+            where: { user_a_id: sourceUserId },
             transaction: tx,
           });
-          if (deleted > 0) {
-            this.logger.log(`Cleared ${deleted} old matches for source user ${sourceUserId}`);
+          const existingByPartnerId = new Map<string, Match>(
+            existing.map(m => [m.user_b_id, m]),
+          );
+
+          // 3b) Build incoming partner-id set for cleanup step
+          const incomingPartnerIds = new Set(incoming.map(p => p.user_b_id));
+
+          // 3c) Upsert each incoming pair — preserve id + user decisions + feedback
+          //     for existing pairs; insert fresh for new pairs.
+          const rowsToInsert: any[] = [];
+          for (const p of incoming) {
+            const prior = existingByPartnerId.get(p.user_b_id);
+            const mutableFields = {
+              batch_id,
+              user_a_persona_compatibility_score: p.match_score ?? 50,
+              user_b_persona_compatibility_score: p.match_score ?? 50,
+              user_a_designation: p.user_a_designation ?? null,
+              user_b_designation: p.user_b_designation ?? null,
+              user_a_objective: objectiveById.get(p.user_a_id) ?? null,
+              user_b_objective: objectiveById.get(p.user_b_id) ?? null,
+              explanation: p.explanation ? {
+                summary: p.explanation,
+                headline: (p as any).headline ?? '',
+                key_points: (p as any).key_points ?? [],
+                generated_at: now.toISOString(),
+              } : null,
+              match_tier: p.match_tier ?? null,
+              synergy_areas: p.synergy_areas ?? [],
+              friction_points: p.friction_points ?? [],
+              talking_points: p.talking_points ?? [],
+              score_breakdown: (p as any).score_breakdown ?? null,
+              reciprocal: (p as any).reciprocal ?? null,
+              updated_at: now,
+            };
+
+            if (prior) {
+              // UPDATE — preserve id, created_at, user_*_decision, user_*_feedback,
+              // ai_remarks_after_chat, status, user_to_user_conversation
+              await prior.update(mutableFields, { transaction: tx });
+              upserted.push(prior);
+            } else {
+              // INSERT — collect for a single bulkCreate below
+              rowsToInsert.push({
+                ...mutableFields,
+                user_a_id: p.user_a_id,
+                user_b_id: p.user_b_id,
+                user_a_feedback: null,
+                user_b_feedback: null,
+                user_a_decision: MatchStatusEnum.PENDING,
+                user_b_decision: MatchStatusEnum.PENDING,
+                ai_remarks_after_chat: null,
+                user_to_user_conversation: false,
+                status: MatchStatusEnum.PENDING,
+                perfect_match: false,
+                created_at: now,
+              });
+            }
           }
+
+          // 3d) Insert the new pairs (ones that weren't in the prior set)
+          if (rowsToInsert.length > 0) {
+            const created = await this.matchModel.bulkCreate(
+              rowsToInsert as any[],
+              { returning: true, transaction: tx },
+            );
+            upserted = upserted.concat(created);
+          }
+
+          // 3e) Delete pairs that dropped out (existed before, not in incoming now)
+          const toDelete = existing
+            .filter(m => !incomingPartnerIds.has(m.user_b_id))
+            .map(m => m.id);
+          if (toDelete.length > 0) {
+            await this.matchModel.destroy({
+              where: { id: { [Op.in]: toDelete } },
+              transaction: tx,
+            });
+            this.logger.log(
+              `Removed ${toDelete.length} dropped pairs for source user ${sourceUserId}`,
+            );
+          }
+
+          this.logger.log(
+            `Upserted ${upserted.length} matches for source user ${sourceUserId} (${rowsToInsert.length} new, ${upserted.length - rowsToInsert.length} updated, ${toDelete.length} removed)`,
+          );
         }
 
-        // 4) Insert all incoming rows (old ones were cleared above)
-        const rows = incoming
-          .map(p => ({
-            batch_id,
-            user_a_id: p.user_a_id,
-            user_b_id: p.user_b_id,
-            user_a_feedback: null,
-            user_b_feedback: null,
-            // Use AI-calculated score instead of null (which defaults to 50)
-            user_a_persona_compatibility_score: p.match_score ?? 50,
-            user_b_persona_compatibility_score: p.match_score ?? 50,
-            user_a_decision: MatchStatusEnum.PENDING,
-            user_b_decision: MatchStatusEnum.PENDING,
-            user_a_designation: p.user_a_designation ?? null,
-            user_b_designation: p.user_b_designation ?? null,
-            user_a_objective: objectiveById.get(p.user_a_id) ?? null,
-            user_b_objective: objectiveById.get(p.user_b_id) ?? null,
-            ai_remarks_after_chat: null,
-            user_to_user_conversation: false,
-            status: MatchStatusEnum.PENDING,
-            perfect_match: false,
-            // Pre-populated explanation from LLM matching — avoids on-demand LLM calls
-            explanation: p.explanation ? {
-              summary: p.explanation,
-              headline: (p as any).headline ?? '',
-              key_points: (p as any).key_points ?? [],
-              generated_at: now.toISOString(),
-            } : null,
-            match_tier: p.match_tier ?? null,
-            synergy_areas: p.synergy_areas ?? [],
-            friction_points: p.friction_points ?? [],
-            talking_points: p.talking_points ?? [],
-            score_breakdown: (p as any).score_breakdown ?? null,
-            reciprocal: (p as any).reciprocal ?? null,
-            created_at: now,
-            updated_at: now,
-          }));
-
-        this.logger.log({ rows_length: rows.length });
-        if (rows.length === 0) return [] as Match[];
-        const created = await this.matchModel.bulkCreate(rows, {
-          returning: true,
-          transaction: tx,
-        });
+        this.logger.log({ rows_length: upserted.length });
+        if (upserted.length === 0) return [] as Match[];
+        const created = upserted;
 
         // daily analytics entry
         await this.dailyAnalyticsService.bumpToday('matches_total', {
