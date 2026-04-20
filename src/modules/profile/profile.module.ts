@@ -7,7 +7,7 @@ import { UserDocument } from 'src/common/entities/user-document.entity';
 import { MessageTemplate } from 'src/common/entities/message-template.entity';
 import { UserSummaries } from 'src/common/entities/user-summaries.entity';
 import { User } from 'src/common/entities/user.entity';
-import { S3Service } from 'src/common/utils/s3.service';
+import { S3Module } from 'src/common/utils/s3.module';
 import { UserActivityLogsModule } from 'src/modules/user-activity-logs/user-activity-logs.module';
 import { AIServiceModule } from 'src/integration/ai-service/ai-service.module';
 
@@ -17,9 +17,10 @@ import { AIServiceModule } from 'src/integration/ai-service/ai-service.module';
     SequelizeModule.forFeature([UserDocument, MessageTemplate, UserSummaries, User]),
     UserModule,
     AIServiceModule,
+    S3Module, // F/u 47: was `S3Service` in providers; centralized to S3Module
   ],
   controllers: [ProfileController],
-  providers: [ProfileService, S3Service],
+  providers: [ProfileService],
   exports: [ProfileService],
 })
 export class ProfileModule {}

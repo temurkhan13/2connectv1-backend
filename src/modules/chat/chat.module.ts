@@ -9,7 +9,7 @@ import { ReportedUser } from 'src/common/entities/reported-user.entity';
 import { User } from 'src/common/entities/user.entity';
 import { NotificationModule } from 'src/modules/notifications/notification.module';
 import { MailModule } from 'src/modules/mail/mail.module';
-import { S3Service } from 'src/common/utils/s3.service';
+import { S3Module } from 'src/common/utils/s3.module';
 
 @Module({
   imports: [
@@ -17,9 +17,10 @@ import { S3Service } from 'src/common/utils/s3.service';
     SequelizeModule.forFeature([ChatConversation, ChatMessage, BlockedUser, ReportedUser, User]),
     NotificationModule,
     MailModule, // abuse-report admin notification ([[Analyses/ugc-moderation-gap-spec]])
+    S3Module, // F/u 47: was `S3Service` in providers; centralized to S3Module
   ],
   controllers: [ChatController],
-  providers: [ChatService, S3Service],
+  providers: [ChatService],
   exports: [ChatService],
 })
 export class ChatModule {}
