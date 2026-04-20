@@ -158,4 +158,133 @@ export class SchedulerService {
       this.logger.warn(`Failed to run match cycle cron: ${error.message}`);
     }
   }
+
+  /**
+   * hardDeleteAccountSweeper
+   * ------------------------
+   * Daily at 3:30 AM UTC — completes the account-deletion flow started
+   * when a user taps "Delete my account" (UserService.initiateAccountDeletion).
+   *
+   * Flow:
+   *  1. Find users soft-deleted more than 30 days ago
+   *     (`users.deleted_at <= NOW() - INTERVAL '30 days'`)
+   *  2. For each: discover all FK references to users.id dynamically
+   *     (same pattern as Apr-20 F/u 40 `tools/_delete_test_users.py` —
+   *     guarantees no table is missed as schema evolves), plus 2 known
+   *     non-FK tables with `user_id` column (`onboarding_answers`,
+   *     `user_embeddings`)
+   *  3. Run transactional hard-delete — all related rows, then the
+   *     user row itself with raw SQL (bypasses paranoid: true on User
+   *     entity so the row is really gone, not just further soft-deleted)
+   *  4. Log per-user outcome
+   *
+   * Apple Guideline 5.1.1(v) + Google Play account-deletion policy
+   * require that user data is actually removed within a reasonable
+   * timeframe. 30 days is industry standard and matches our in-app
+   * messaging ("Full deletion will complete in 30 days").
+   *
+   * Safe to run daily: if no eligible users, no-op in ~200ms.
+   * See Analyses/account-deletion-spec.md + [[Apr-20]] F/u 48.
+   */
+  @Cron('0 30 3 * * *', { timeZone: 'UTC' })
+  async hardDeleteAccountSweeper() {
+    this.logger.log('=+=+=+=+=+ HARD DELETE ACCOUNT SWEEPER CRON =+=+=+=+=+');
+
+    const graceDays = Number(process.env.ACCOUNT_HARD_DELETE_GRACE_DAYS || '30');
+
+    try {
+      // 1) Find users whose soft-delete is older than grace window
+      const [usersResult] = await this.sequelize.query(
+        `SELECT id, email FROM users
+         WHERE deleted_at IS NOT NULL
+         AND deleted_at <= NOW() - INTERVAL '${graceDays} days'`,
+      );
+      const users = usersResult as Array<{ id: string; email: string }>;
+
+      if (users.length === 0) {
+        this.logger.log(`No accounts eligible for hard-delete (grace=${graceDays} days).`);
+        return;
+      }
+
+      this.logger.log(
+        `Found ${users.length} account(s) eligible for hard-delete (soft-deleted >=${graceDays}d ago).`,
+      );
+
+      // 2) Discover all FK references to users.id dynamically
+      const [fkRefsResult] = await this.sequelize.query(
+        `SELECT tc.table_name, kcu.column_name
+         FROM information_schema.table_constraints tc
+         JOIN information_schema.key_column_usage kcu
+           ON tc.constraint_name = kcu.constraint_name
+         JOIN information_schema.constraint_column_usage ccu
+           ON ccu.constraint_name = tc.constraint_name
+         WHERE tc.constraint_type = 'FOREIGN KEY'
+           AND ccu.table_name = 'users'
+           AND ccu.column_name = 'id'
+         ORDER BY tc.table_name`,
+      );
+      const fkRefs = fkRefsResult as Array<{ table_name: string; column_name: string }>;
+
+      // Non-FK tables that also have user_id (discovered in F/u 40)
+      const nonFkTables: Array<{ table: string; column: string }> = [
+        { table: 'onboarding_answers', column: 'user_id' },
+        { table: 'user_embeddings', column: 'user_id' },
+      ];
+
+      let usersDeleted = 0;
+      let usersFailed = 0;
+      const failedIds: string[] = [];
+
+      // 3) Per-user transactional hard-delete
+      for (const user of users) {
+        try {
+          await this.sequelize.transaction(async (t) => {
+            // Delete from all FK-referenced tables
+            for (const fk of fkRefs) {
+              await this.sequelize.query(
+                `DELETE FROM "${fk.table_name}" WHERE "${fk.column_name}"::text = :userId`,
+                { replacements: { userId: user.id }, transaction: t },
+              );
+            }
+
+            // Delete from non-FK tables (tolerate missing tables across envs)
+            for (const { table, column } of nonFkTables) {
+              try {
+                await this.sequelize.query(
+                  `DELETE FROM "${table}" WHERE "${column}"::text = :userId`,
+                  { replacements: { userId: user.id }, transaction: t },
+                );
+              } catch (e: any) {
+                if (!String(e?.message || '').includes('does not exist')) throw e;
+              }
+            }
+
+            // Finally hard-delete the user row itself (bypasses paranoid)
+            await this.sequelize.query(
+              `DELETE FROM users WHERE id = :userId`,
+              { replacements: { userId: user.id }, transaction: t },
+            );
+          });
+          usersDeleted++;
+          this.logger.log(
+            `Hard-deleted user ${user.id.slice(0, 8)} (email=${user.email}) + all related data.`,
+          );
+        } catch (err: any) {
+          usersFailed++;
+          failedIds.push(user.id);
+          this.logger.warn(
+            `Hard-delete FAILED for user ${user.id.slice(0, 8)} (email=${user.email}): ${err?.message}`,
+          );
+        }
+      }
+
+      this.logger.log(
+        `Hard-delete sweeper complete: ${usersDeleted}/${users.length} deleted, ${usersFailed} failed${
+          usersFailed > 0 ? ' (ids=' + failedIds.join(',') + ')' : ''
+        }.`,
+      );
+    } catch (error: any) {
+      this.logger.warn(`Hard-delete sweeper failed: ${error?.message}`);
+    }
+  }
 }
