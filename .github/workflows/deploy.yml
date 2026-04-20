@@ -75,6 +75,11 @@ jobs:
           AWS_ACCESS_KEY_ID: AKIAPREFLIGHT0000000
           AWS_SECRET_ACCESS_KEY: preflight-secret-key-not-real
           S3_BUCKET: preflight-bucket
+          # AI service integration config has hard-throw validators for
+          # AI_SERVICE_URL + AI_SERVICE_API_KEY (ai-service.config.ts:21,25).
+          # Without these, the app throws before DI resolution completes.
+          AI_SERVICE_URL: http://localhost:9998/api/v1
+          AI_SERVICE_API_KEY: preflight-ai-key-not-real
         run: |
           set +e
           # Start app in background, log to file
@@ -96,14 +101,31 @@ jobs:
 
           # Hard failure signals — any of these = Nest DI container could
           # not resolve the dependency graph. This is the F/u 45 class.
-          if grep -qE "Nest can't resolve dependencies|ExceptionHandler\].*Nest|UnknownDependenciesException|Error: Nest can't" /tmp/preflight.log; then
+          # Pattern is intentionally DI-specific to avoid false positives on
+          # generic startup errors (missing env var validators, etc. —
+          # those are real problems but a different class of issue that
+          # the `missing required env var` fallback below handles).
+          if grep -qE "Nest can't resolve dependencies|UnknownDependenciesException|please make sure that the argument.*is available" /tmp/preflight.log; then
             echo "❌ FAIL: Nest DI resolution failed — see log above"
             echo ""
             echo "This is the same class of bug as the Apr-20 F/u 45"
             echo "production outage (8m 21s). Fix the module imports"
             echo "BEFORE pushing to main."
             echo ""
-            grep -B 1 -A 8 "Nest can't resolve\|ExceptionHandler\].*Nest" /tmp/preflight.log | head -30
+            grep -B 1 -A 8 "Nest can't resolve\|UnknownDependenciesException\|please make sure that the argument" /tmp/preflight.log | head -30
+            exit 1
+          fi
+
+          # Catch "env variable is required" hard-throws from config
+          # validators. These aren't DI errors but still break bootstrap.
+          # If we see one it means my dummy env is missing something —
+          # fail so we update the workflow rather than shipping a crash.
+          if grep -qE "environment variable is required" /tmp/preflight.log; then
+            echo "❌ FAIL: Config validator threw — missing a required env var in preflight dummy env"
+            echo ""
+            grep "environment variable is required" /tmp/preflight.log | head -5
+            echo ""
+            echo "Action: add the missing env var to the preflight 'env:' block in deploy.yml."
             exit 1
           fi
 
