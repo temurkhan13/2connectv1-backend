@@ -59,8 +59,12 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 # Sequelize
 config/config.json
 
-package-lock.json
-**/package-lock.json
+# Apr-20 F/u 47: package-lock.json NOW committed for deterministic installs
+# (see also .github/workflows/deploy.yml preflight which now uses `npm ci`).
+# Prior state (gitignored) made CI installs non-deterministic — different
+# runs could resolve different transitive deps. Committing the lockfile
+# snapshots the current dep graph; updates via `npm install <pkg>` continue
+# to regenerate it, just now the regenerations get committed + reviewed.
 
 firebase_project_private_key.json
 

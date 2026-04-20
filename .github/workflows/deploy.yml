@@ -36,16 +36,17 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '24'
-          # No cache: package-lock.json is gitignored (see .gitignore:62-63)
-          # so setup-node/cache has nothing to key on. Fresh install each
-          # run adds ~30-60s to preflight — acceptable cost until the repo
-          # commits a lockfile (separate refactor).
+          # Apr-20 F/u 47: lockfile committed, cache on.
+          # Prior runs (F/u 46) had to skip cache + use `npm install` because
+          # package-lock.json was gitignored. Now that it's tracked, cache
+          # speeds up preflight by ~30-60s per run + installs are deterministic.
+          cache: 'npm'
 
       - name: Install dependencies
-        # npm install (not npm ci) because there's no package-lock.json
-        # in the repo. Non-deterministic but functionally equivalent for
-        # the preflight's purpose (resolve Nest DI, not pin versions).
-        run: npm install --no-audit --no-fund
+        # npm ci — deterministic install from the committed lockfile.
+        # Faster than `npm install` (skips dep-graph resolution) + guarantees
+        # CI uses the exact tree the dev who last touched deps saw.
+        run: npm ci --no-audit --no-fund
 
       - name: Build
         run: npm run build
