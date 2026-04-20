@@ -18,10 +18,17 @@ import { DailyAnalyticsService } from 'src/modules/daily-analytics/daily-analyti
 import { DailyAnalytics } from 'src/common/entities/daily-analytics.entity';
 import { PushToken } from 'src/common/entities/push-token.entity';
 import { NotificationSettings } from 'src/common/entities/notification-settings.entity';
+import { MailModule } from 'src/modules/mail/mail.module';
 
 @Module({
   imports: [
     UserActivityLogsModule,
+    // Apr-20 F/u 45: OnBoardingModule provides UserService directly (line below);
+    // UserService now depends on MailService (for account deletion confirmation)
+    // so MailModule must be in this context too. Without this the DI container
+    // fails at bootstrap with "Nest can't resolve dependencies of the UserService
+    // ... MailService at index [3] is available in the OnBoardingModule context."
+    MailModule,
     SequelizeModule.forFeature([
       OnboardingQuestion,
       OnboardingSection,
