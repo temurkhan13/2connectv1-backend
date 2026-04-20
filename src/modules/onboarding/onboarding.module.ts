@@ -10,25 +10,28 @@ import { Role } from 'src/common/entities/role.entity';
 import { UserSummaries } from 'src/common/entities/user-summaries.entity';
 import { UserFcmToken } from 'src/common/entities/user-fcm-token.entity';
 import { S3Service } from 'src/common/utils/s3.service';
-import { UserService } from 'src/modules/user/user.service';
 import { NotificationService } from 'src/modules/notifications/notification.service';
 import { UserDocument } from 'src/common/entities/user-document.entity';
 import { UserActivityLogsModule } from 'src/modules/user-activity-logs/user-activity-logs.module';
 import { DailyAnalyticsService } from 'src/modules/daily-analytics/daily-analytics.service';
 import { DailyAnalytics } from 'src/common/entities/daily-analytics.entity';
-import { PushToken } from 'src/common/entities/push-token.entity';
-import { NotificationSettings } from 'src/common/entities/notification-settings.entity';
-import { MailModule } from 'src/modules/mail/mail.module';
+
+// Apr-20 F/u 46: removed UserService provider + MailModule import + PushToken
+// + NotificationSettings entity registrations from this module. Audit (F/u 46)
+// showed UserService was a DEAD reference here — not injected anywhere in
+// OnBoardingService, OnBoardingController, or any related file. Its presence
+// in providers caused the F/u 45 production outage (8m 21s) when a MailService
+// dep was added to UserService: Nest instantiates all declared providers even
+// if unused, so OnBoardingModule crashed trying to resolve MailService it
+// didn't import. Cleanest fix is to not provide the service we don't use.
+//
+// If a future change DOES need UserService in this module, import UserModule
+// (which `exports: [UserService]`) instead of re-declaring the provider.
+// That way adding a dep to UserService only requires updating UserModule.
 
 @Module({
   imports: [
     UserActivityLogsModule,
-    // Apr-20 F/u 45: OnBoardingModule provides UserService directly (line below);
-    // UserService now depends on MailService (for account deletion confirmation)
-    // so MailModule must be in this context too. Without this the DI container
-    // fails at bootstrap with "Nest can't resolve dependencies of the UserService
-    // ... MailService at index [3] is available in the OnBoardingModule context."
-    MailModule,
     SequelizeModule.forFeature([
       OnboardingQuestion,
       OnboardingSection,
@@ -39,15 +42,12 @@ import { MailModule } from 'src/modules/mail/mail.module';
       UserSummaries,
       UserDocument,
       DailyAnalytics,
-      PushToken,
-      NotificationSettings,
     ]),
   ],
   controllers: [OnBoardingController],
   providers: [
     OnBoardingService,
     S3Service,
-    UserService,
     NotificationService,
     DailyAnalyticsService,
   ],
