@@ -5,7 +5,137 @@ on:
     branches: [main]
 
 jobs:
+  # ────────────────────────────────────────────────────────────────
+  # Preflight — bootstrap smoke test (Apr-20 F/u 46)
+  #
+  # Added after the F/u 45 production outage (8m 21s) caused by a Nest DI
+  # misconfiguration shipping to prod uncaught. Root cause: UserService got
+  # a new constructor dep; UserModule imported the needed module, but
+  # OnBoardingModule (which also provides UserService) did not — Nest DI
+  # container crashed at bootstrap. CI did nothing to catch it.
+  #
+  # This job:
+  #   1. Compiles the TypeScript (catches syntax + type errors)
+  #   2. Starts `node dist/main.js` in a sandbox with dummy env (so config
+  #      resolution succeeds) for 15 seconds
+  #   3. Greps the output for Nest DI errors ("ExceptionHandler" /
+  #      "can't resolve dependencies") — any match fails the job
+  #   4. Requires the bootstrap to log either a successful start OR a
+  #      downstream runtime error (DB connection refused is acceptable —
+  #      it means DI passed). A total silence = also a fail.
+  #
+  # Fast (~60-90s). Runs BEFORE the deploy job; deploy is `needs: preflight`.
+  # See 2ConnectVault Apr-20.md F/u 45 for the incident post-mortem.
+  # ────────────────────────────────────────────────────────────────
+  preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Bootstrap smoke test (Nest DI resolution)
+        env:
+          # Minimal env — just enough for ConfigModule to hydrate.
+          # The app will try to connect to these endpoints and eventually
+          # fail, but DI resolution happens BEFORE that — which is what
+          # we care about catching here.
+          DATABASE_URL: postgres://preflight:preflight@127.0.0.1:5432/preflight
+          JWT_SECRET: preflight-ci-smoke-test-not-a-real-secret
+          JWT_EXPIRATION: 1h
+          APP_NAME: preflight
+          FRONT_END_BASE_URL: http://localhost:3000
+          API_BASE_URL: http://localhost:3000/api/v1
+          NODE_ENV: test
+          REDIS_URL: redis://127.0.0.1:6379
+          PORT: 3001
+          # Dummy SES/AWS creds so MailModule resolves without errors.
+          # (These never make a real SES call during DI phase.)
+          SES_AWS_REGION: us-west-2
+          SES_AWS_ACCESS_KEY_ID: AKIAPREFLIGHT0000000
+          SES_AWS_SECRET_ACCESS_KEY: preflight-secret-key-not-real
+          SES_FROM_EMAIL: noreply@preflight.local
+          AWS_REGION: us-west-2
+          AWS_ACCESS_KEY_ID: AKIAPREFLIGHT0000000
+          AWS_SECRET_ACCESS_KEY: preflight-secret-key-not-real
+          S3_BUCKET: preflight-bucket
+        run: |
+          set +e
+          # Start app in background, log to file
+          timeout 20 node dist/main.js > /tmp/preflight.log 2>&1 &
+          APP_PID=$!
+
+          # Give Nest ~15s to complete DI resolution (it happens in the first
+          # 2-3s normally; 15s is a generous buffer for cold-start on CI).
+          sleep 15
+
+          # Stop the app regardless of its state — we only care about what
+          # it logged during those 15 seconds.
+          kill -SIGTERM $APP_PID 2>/dev/null || true
+          wait $APP_PID 2>/dev/null || true
+
+          echo "==== Captured bootstrap log (last 80 lines) ===="
+          tail -80 /tmp/preflight.log
+          echo "==== End bootstrap log ===="
+
+          # Hard failure signals — any of these = Nest DI container could
+          # not resolve the dependency graph. This is the F/u 45 class.
+          if grep -qE "Nest can't resolve dependencies|ExceptionHandler\].*Nest|UnknownDependenciesException|Error: Nest can't" /tmp/preflight.log; then
+            echo "❌ FAIL: Nest DI resolution failed — see log above"
+            echo ""
+            echo "This is the same class of bug as the Apr-20 F/u 45"
+            echo "production outage (8m 21s). Fix the module imports"
+            echo "BEFORE pushing to main."
+            echo ""
+            grep -B 1 -A 8 "Nest can't resolve\|ExceptionHandler\].*Nest" /tmp/preflight.log | head -30
+            exit 1
+          fi
+
+          # Soft success signals — we DID make progress past DI resolution.
+          # "Nest application successfully started" = full bootstrap OK.
+          # "ConnectionError" / "ECONNREFUSED" / "getaddrinfo" = DI passed,
+          # app tried to reach the dummy DB/Redis and failed, which is fine.
+          # "InstanceLoader" followed by "dependencies initialized" for
+          # multiple modules = at least some DI resolution succeeded.
+          if grep -qE "Nest application successfully started|Server listening on port" /tmp/preflight.log; then
+            echo "✅ PASS: Full bootstrap succeeded (unexpected with dummy env — but good)"
+            exit 0
+          fi
+
+          if grep -qE "ConnectionError|ECONNREFUSED|ETIMEDOUT|getaddrinfo|ENOTFOUND" /tmp/preflight.log; then
+            echo "✅ PASS: DI resolution completed (bootstrap failed later on dummy DB/Redis, which is expected in CI)"
+            exit 0
+          fi
+
+          if grep -qE "InstanceLoader\].*dependencies initialized" /tmp/preflight.log; then
+            # At least some DI resolution happened + no error was logged.
+            # Either a crash with a quiet exit or an app that's still
+            # starting — either way no DI error surfaced.
+            INITIALIZED_COUNT=$(grep -c "dependencies initialized" /tmp/preflight.log)
+            echo "✅ PASS: DI resolution completed ($INITIALIZED_COUNT modules initialized, no errors)"
+            exit 0
+          fi
+
+          # Total silence is suspicious — might indicate a segfault or missing
+          # entrypoint. Fail so we don't ship blind.
+          echo "❌ FAIL: No Nest bootstrap output captured — possible build output missing or crash before logger init"
+          exit 1
+
+  # ────────────────────────────────────────────────────────────────
+  # Deploy — only runs if preflight passed
+  # ────────────────────────────────────────────────────────────────
   deploy:
+    needs: preflight
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -32,3 +162,42 @@ jobs:
             --deployment-group-name backend \
             --s3-location bucket=2connect-dev-backend-artifacts,key=backend/deploy.zip,bundleType=zip \
             --file-exists-behavior OVERWRITE
+
+      # ────────────────────────────────────────────────────────────────
+      # Post-deploy health gate (Apr-20 F/u 46)
+      #
+      # After CodeDeploy triggers the new build on EC2, poll the public
+      # health endpoint until it returns 200 — or fail the workflow if
+      # the service doesn't recover within 3 minutes.
+      #
+      # Unlike the preflight (which runs in CI), this catches:
+      #   - deploy-time errors (CodeDeploy lifecycle hooks failing)
+      #   - env-var mismatches (prod env differs from CI dummy env)
+      #   - resource contention at boot (RDS unreachable, Redis down, etc.)
+      # ────────────────────────────────────────────────────────────────
+      - name: Wait for service to come up after deploy
+        run: |
+          set +e
+          echo "Polling https://api.2connect.ai/api/v1/health (up to 3 minutes)..."
+          for i in $(seq 1 36); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 https://api.2connect.ai/api/v1/health 2>/dev/null)
+            ts=$(date -u +%H:%M:%S)
+            if [ "$code" = "200" ]; then
+              echo "✅ $ts — service healthy (HTTP 200)"
+              exit 0
+            fi
+            echo "  $ts — attempt $i/36: HTTP $code"
+            sleep 5
+          done
+          echo "❌ Service did not return 200 within 3 minutes — investigate!"
+          echo ""
+          echo "Possible causes:"
+          echo "  - Nest DI error that snuck past preflight (env mismatch)"
+          echo "  - EC2 instance unreachable"
+          echo "  - RDS / Redis connection failing at boot"
+          echo "  - CodeDeploy lifecycle hook failed"
+          echo ""
+          echo "SSH: ssh -i ~/.ssh/2connect-prod-key.pem ec2-user@54.69.215.148"
+          echo "Logs: sudo tail -200 /var/log/2connect/backend.log"
+          echo "Status: systemctl status 2connect-backend"
+          exit 1
