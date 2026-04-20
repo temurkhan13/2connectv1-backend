@@ -8,6 +8,7 @@ import { BlockedUser } from 'src/common/entities/blocked-user.entity';
 import { ReportedUser } from 'src/common/entities/reported-user.entity';
 import { User } from 'src/common/entities/user.entity';
 import { NotificationService } from 'src/modules/notifications/notification.service';
+import { MailService } from 'src/modules/mail/mail.service';
 
 @Injectable()
 export class ChatService {
@@ -22,8 +23,11 @@ export class ChatService {
     private blockedUserModel: typeof BlockedUser,
     @InjectModel(ReportedUser)
     private reportedUserModel: typeof ReportedUser,
+    @InjectModel(User)
+    private userModel: typeof User,
     private sequelize: Sequelize,
     private readonly notificationService: NotificationService,
+    private readonly mailService: MailService,
   ) {}
 
   /**
@@ -357,6 +361,13 @@ export class ChatService {
 
   /**
    * Report a user.
+   *
+   * Side effects:
+   * - Creates row in `reported_users` with status 'pending'
+   * - Fires abuse-report email to admin inbox via MailService (fire-and-forget;
+   *   mail failure does NOT fail the report creation — DB row is source of truth).
+   *   Satisfies Apple Guideline 1.2 + Google UGC policy "reviewer requirement"
+   *   ([[Analyses/ugc-moderation-gap-spec]] Option A, Apr-20 F/u 43).
    */
   async reportUser(
     reporterId: string,
@@ -365,7 +376,7 @@ export class ChatService {
     details?: string,
     conversationId?: string,
   ): Promise<void> {
-    await this.reportedUserModel.create({
+    const report = await this.reportedUserModel.create({
       reporter_id: reporterId,
       reported_id: reportedId,
       reason,
@@ -373,6 +384,32 @@ export class ChatService {
       conversation_id: conversationId || null,
     });
     this.logger.log(`User ${reporterId} reported ${reportedId}: ${reason}`);
+
+    // Fire-and-forget admin notification. Log mail errors locally but never
+    // throw — the API response to the reporter should not depend on SES.
+    (async () => {
+      try {
+        const [reporter, reported] = await Promise.all([
+          this.userModel.findByPk(reporterId, { attributes: ['email'], raw: true }),
+          this.userModel.findByPk(reportedId, { attributes: ['email'], raw: true }),
+        ]);
+        await this.mailService.sendAbuseReportNotification({
+          reportId: report.id,
+          reporterId,
+          reporterEmail: reporter?.email,
+          reportedId,
+          reportedEmail: reported?.email,
+          reason,
+          details,
+          conversationId,
+        });
+      } catch (mailErr) {
+        const e = mailErr as Error;
+        this.logger.warn(
+          `Abuse report admin email failed (report_id=${report.id}, error=${e.message}) — report DB row still created; admin can query reported_users manually.`,
+        );
+      }
+    })();
   }
 
   /**

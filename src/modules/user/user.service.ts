@@ -3,16 +3,27 @@
  * Handles push token and notification settings management
  */
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { PushToken } from 'src/common/entities/push-token.entity';
 import { NotificationSettings } from 'src/common/entities/notification-settings.entity';
+import { User } from 'src/common/entities/user.entity';
+import { MailService } from 'src/modules/mail/mail.service';
 import {
   RegisterPushTokenDto,
   RegisterPushTokenResponseDto,
   UnregisterPushTokenResponseDto,
 } from './dto/push-token.dto';
 import { NotificationSettingsDto, UpdateNotificationSettingsDto } from './dto/notification-settings.dto';
+
+/**
+ * Grace period (days) between user-initiated soft-delete and permanent
+ * hard-delete by the SchedulerService sweeper. Both Apple (5.1.1(v)) and
+ * Google Play policy accept a 30-day window; industry standard.
+ */
+const ACCOUNT_HARD_DELETE_GRACE_DAYS = Number(
+  process.env.ACCOUNT_HARD_DELETE_GRACE_DAYS || '30',
+);
 
 @Injectable()
 export class UserService {
@@ -21,6 +32,8 @@ export class UserService {
   constructor(
     @InjectModel(PushToken) private pushTokenModel: typeof PushToken,
     @InjectModel(NotificationSettings) private notificationSettingsModel: typeof NotificationSettings,
+    @InjectModel(User) private userModel: typeof User,
+    private readonly mailService: MailService,
   ) {}
 
   /**
@@ -151,5 +164,105 @@ export class UserService {
       messageNotifications: settings.message_notifications,
       weeklyDigest: settings.weekly_digest,
     };
+  }
+
+  // ============================================================
+  // ACCOUNT DELETION (Apple 5.1.1(v) + Google Play policy)
+  // ============================================================
+
+  /**
+   * Initiate user-requested account deletion.
+   *
+   * Flow:
+   *  1. Soft-delete the user row via paranoid: true (sets deleted_at).
+   *     JWT strategy already blocks soft-deleted users at next request
+   *     (auth/jwt.strategy.ts:94), so tokens become invalid naturally.
+   *  2. Unregister push tokens so no more notifications go to the device.
+   *  3. Send confirmation email via SES with reactivation instructions.
+   *  4. Return the scheduled hard-delete timestamp for caller to show user.
+   *
+   * Hard-delete of all related data happens via a SchedulerService sweeper
+   * (~ACCOUNT_HARD_DELETE_GRACE_DAYS later). Until then user may reactivate
+   * by replying to the confirmation email (support-team-only restoration).
+   *
+   * Idempotent: deleting an already-soft-deleted user returns the existing
+   * scheduled_hard_delete instead of restarting the window.
+   *
+   * See Analyses/account-deletion-spec.md (Apr-20 F/u 43).
+   */
+  async initiateAccountDeletion(userId: string): Promise<{
+    scheduledHardDelete: Date;
+    alreadyInitiated: boolean;
+  }> {
+    // Find user — INCLUDE soft-deleted rows so we handle the idempotent case
+    const user = await this.userModel.findByPk(userId, { paranoid: false });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const deletedAt = (user as any).deleted_at as Date | null;
+    if (deletedAt) {
+      // Already soft-deleted — return existing scheduled window
+      const scheduledHardDelete = new Date(
+        deletedAt.getTime() + ACCOUNT_HARD_DELETE_GRACE_DAYS * 24 * 60 * 60 * 1000,
+      );
+      this.logger.log(
+        `Account deletion already initiated for user ${userId} at ${deletedAt.toISOString()} — returning existing schedule`,
+      );
+      return { scheduledHardDelete, alreadyInitiated: true };
+    }
+
+    const email = user.email;
+    const firstName = (user as any).first_name as string | undefined;
+
+    // 1) Soft-delete (paranoid: true handles this — just sets deleted_at)
+    await user.destroy();
+    this.logger.log(`Soft-deleted user ${userId} (email=${email})`);
+
+    // 2) Unregister push tokens
+    try {
+      await this.unregisterPushToken(userId);
+    } catch (e) {
+      const err = e as Error;
+      this.logger.warn(
+        `Push token unregister failed for ${userId}: ${err.message} — deletion proceeds`,
+      );
+    }
+
+    // 3) Schedule + send confirmation email (fire-and-forget — mail failure
+    //    must not reverse the soft-delete)
+    const scheduledHardDelete = new Date(
+      Date.now() + ACCOUNT_HARD_DELETE_GRACE_DAYS * 24 * 60 * 60 * 1000,
+    );
+
+    (async () => {
+      try {
+        await this.mailService.sendAccountDeletionConfirmation(email, {
+          firstName,
+          scheduledHardDelete,
+        });
+      } catch (mailErr) {
+        const e = mailErr as Error;
+        this.logger.warn(
+          `Account deletion confirmation email failed for ${email}: ${e.message} — deletion remains in effect`,
+        );
+      }
+    })();
+
+    this.logger.log(
+      `Account deletion initiated: user=${userId}, scheduled_hard_delete=${scheduledHardDelete.toISOString()}`,
+    );
+
+    return { scheduledHardDelete, alreadyInitiated: false };
+  }
+
+  /**
+   * Reactivate a soft-deleted user account (support-team action).
+   * No public endpoint — triggered manually from an admin context after
+   * the user replies to the deletion confirmation email.
+   */
+  async reactivateAccount(userId: string): Promise<void> {
+    await this.userModel.restore({ where: { id: userId } });
+    this.logger.log(`Reactivated user ${userId} — clearing deleted_at`);
   }
 }

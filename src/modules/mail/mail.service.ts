@@ -632,6 +632,152 @@ export class MailService {
   }
 
   /**
+   * Send an internal admin notification when a user reports another user.
+   * Satisfies Apple Guideline 1.2 + Google UGC policy reviewer requirement
+   * ("what happens when a user is reported?" — admin is notified within
+   * 60 sec and actions via existing `reported_users` table). See
+   * Analyses/ugc-moderation-gap-spec.md (Apr-20 F/u 43).
+   *
+   * Fire-and-forget from ChatService.reportUser — we log failure but never
+   * throw back to the user's report POST; the DB row is the source of truth.
+   */
+  async sendAbuseReportNotification(params: {
+    reportId: string;
+    reporterId: string;
+    reporterEmail?: string;
+    reportedId: string;
+    reportedEmail?: string;
+    reason: string;
+    details?: string;
+    conversationId?: string;
+  }): Promise<boolean> {
+    const abuseInbox =
+      process.env.ABUSE_REPORT_EMAIL ||
+      process.env.SUPPORT_EMAIL ||
+      'support@2connect.ai';
+
+    this.logger.log(`SEND ABUSE REPORT NOTIFICATION to ${abuseInbox}`);
+    this.logger.log({ report_id: params.reportId, reason: params.reason });
+
+    const createdAt = new Date().toISOString();
+
+    // Plain HTML — this is an internal ops email, no branding needed.
+    // Admin copies the report_id into an SQL UPDATE to action.
+    const html = `
+      <div style="font-family:Arial,sans-serif;color:#1a1a1a;max-width:640px;margin:0 auto;padding:24px;">
+        <h2 style="margin:0 0 16px;color:#B91C1C;">Abuse report submitted</h2>
+        <p style="margin:0 0 16px;font-size:14px;">A user has reported another user. Review + action in <code>reported_users</code> table.</p>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <tr><td style="padding:6px 8px;border-bottom:1px solid #eee;font-weight:600;">Report ID</td><td style="padding:6px 8px;border-bottom:1px solid #eee;"><code>${params.reportId}</code></td></tr>
+          <tr><td style="padding:6px 8px;border-bottom:1px solid #eee;font-weight:600;">Reporter</td><td style="padding:6px 8px;border-bottom:1px solid #eee;"><code>${params.reporterId}</code>${params.reporterEmail ? ` (${params.reporterEmail})` : ''}</td></tr>
+          <tr><td style="padding:6px 8px;border-bottom:1px solid #eee;font-weight:600;">Reported</td><td style="padding:6px 8px;border-bottom:1px solid #eee;"><code>${params.reportedId}</code>${params.reportedEmail ? ` (${params.reportedEmail})` : ''}</td></tr>
+          <tr><td style="padding:6px 8px;border-bottom:1px solid #eee;font-weight:600;">Reason</td><td style="padding:6px 8px;border-bottom:1px solid #eee;">${this.escapeHtml(params.reason)}</td></tr>
+          ${params.details ? `<tr><td style="padding:6px 8px;border-bottom:1px solid #eee;font-weight:600;vertical-align:top;">Details</td><td style="padding:6px 8px;border-bottom:1px solid #eee;white-space:pre-wrap;">${this.escapeHtml(params.details)}</td></tr>` : ''}
+          ${params.conversationId ? `<tr><td style="padding:6px 8px;border-bottom:1px solid #eee;font-weight:600;">Conversation</td><td style="padding:6px 8px;border-bottom:1px solid #eee;"><code>${params.conversationId}</code></td></tr>` : ''}
+          <tr><td style="padding:6px 8px;border-bottom:1px solid #eee;font-weight:600;">Submitted</td><td style="padding:6px 8px;border-bottom:1px solid #eee;">${createdAt}</td></tr>
+          <tr><td style="padding:6px 8px;font-weight:600;">Status</td><td style="padding:6px 8px;">pending</td></tr>
+        </table>
+        <h3 style="margin:24px 0 8px;font-size:14px;">Action commands</h3>
+        <pre style="background:#f5f5f5;padding:12px;border-radius:6px;font-size:12px;overflow-x:auto;">UPDATE reported_users SET status = 'reviewed' WHERE id = '${params.reportId}';
+UPDATE reported_users SET status = 'actioned' WHERE id = '${params.reportId}';
+UPDATE reported_users SET status = 'dismissed' WHERE id = '${params.reportId}';
+-- To suspend the reported user:
+UPDATE users SET is_active = false WHERE id = '${params.reportedId}';</pre>
+        <p style="margin:16px 0 0;font-size:12px;color:#666;">Automated — ${this.appName} abuse reporting system.</p>
+      </div>
+    `;
+
+    const textFallback =
+      `Abuse report submitted\n\n` +
+      `Report ID: ${params.reportId}\n` +
+      `Reporter: ${params.reporterId}${params.reporterEmail ? ` (${params.reporterEmail})` : ''}\n` +
+      `Reported: ${params.reportedId}${params.reportedEmail ? ` (${params.reportedEmail})` : ''}\n` +
+      `Reason: ${params.reason}\n` +
+      (params.details ? `Details: ${params.details}\n` : '') +
+      (params.conversationId ? `Conversation: ${params.conversationId}\n` : '') +
+      `Submitted: ${createdAt}\n` +
+      `Status: pending\n\n` +
+      `Action via SQL on reported_users.status. See HTML body for ready-to-run commands.\n\n` +
+      `— ${this.appName} abuse reporting system`;
+
+    const subject = `[${this.appName} Abuse Report] pending review — report #${params.reportId.slice(0, 8)}`;
+
+    return this.sendEmail({
+      to: abuseInbox,
+      subject,
+      html,
+      textFallback,
+      logContext: 'abuse-report',
+    });
+  }
+
+  /**
+   * Send account-deletion confirmation to the user.
+   * Satisfies Apple 5.1.1(v) + Google Play account-deletion policy "clear
+   * user communication". 30-day reactivation window; hard-delete completes
+   * via the SchedulerService sweeper. See Analyses/account-deletion-spec.md
+   * (Apr-20 F/u 43).
+   */
+  async sendAccountDeletionConfirmation(
+    email: string,
+    params: {
+      firstName?: string;
+      scheduledHardDelete: Date;
+    },
+  ): Promise<boolean> {
+    this.logger.log(`SEND ACCOUNT DELETION CONFIRMATION`);
+    this.logger.log({ email });
+
+    const name = params.firstName || 'there';
+    const scheduledDateFormatted = params.scheduledHardDelete.toLocaleDateString(
+      'en-US',
+      { year: 'numeric', month: 'long', day: 'numeric' },
+    );
+    const appName = this.appName;
+
+    // Transactional email — simple template following the verify/forgot-password
+    // pattern. User-facing so it gets light branding (same color + signature).
+    const html = `
+      <div style="font-family:Arial,sans-serif;color:#364151;max-width:560px;margin:0 auto;padding:24px;">
+        <h2 style="margin:0 0 16px;color:#190D57;font-weight:500;">Account deletion in progress</h2>
+        <p style="margin:0 0 12px;font-size:14px;line-height:22px;">Hi ${this.escapeHtml(name)},</p>
+        <p style="margin:0 0 12px;font-size:14px;line-height:22px;">We've received your request to delete your ${appName} account. Your account has been deactivated immediately — you'll be signed out on all devices and won't appear to other users.</p>
+        <p style="margin:0 0 12px;font-size:14px;line-height:22px;"><strong>Full deletion will complete on ${scheduledDateFormatted}</strong> (30 days from now). Until then, your data is retained in case you change your mind.</p>
+        <p style="margin:0 0 12px;font-size:14px;line-height:22px;"><strong>Changed your mind?</strong> Reply to this email before ${scheduledDateFormatted} and we'll restore your account.</p>
+        <p style="margin:24px 0 0;font-size:14px;line-height:22px;">Need help? <a href="mailto:support@2connect.ai" style="color:#267791;font-weight:600;">support@2connect.ai</a>.</p>
+        <p style="margin:24px 0 0;font-size:14px;line-height:22px;">— The ${appName} Team</p>
+      </div>
+    `;
+
+    const textFallback =
+      `Hi ${name},\n\n` +
+      `We've received your request to delete your ${appName} account. Your account has been deactivated immediately — you'll be signed out on all devices and won't appear to other users.\n\n` +
+      `Full deletion will complete on ${scheduledDateFormatted} (30 days from now). Until then, your data is retained in case you change your mind.\n\n` +
+      `Changed your mind? Reply to this email before ${scheduledDateFormatted} and we'll restore your account.\n\n` +
+      `Need help? support@2connect.ai\n\n` +
+      `— The ${appName} Team`;
+
+    const subject = `${appName} — Account deletion in progress`;
+
+    return this.sendEmail({
+      to: email,
+      subject,
+      html,
+      textFallback,
+      logContext: 'account-deletion',
+    });
+  }
+
+  /** Minimal HTML escape for admin-facing abuse report content. */
+  private escapeHtml(s: string): string {
+    return s
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  /**
    * enqueueWeeklyMatchSummaryEmails
    * -------------------------------
    * Purpose:

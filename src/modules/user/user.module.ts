@@ -9,6 +9,7 @@ import { UserFcmToken } from 'src/common/entities/user-fcm-token.entity';
 import { UserSummaries } from 'src/common/entities/user-summaries.entity';
 import { PushToken } from 'src/common/entities/push-token.entity';
 import { NotificationSettings } from 'src/common/entities/notification-settings.entity';
+import { MailModule } from 'src/modules/mail/mail.module';
 
 @Module({
   imports: [
@@ -21,6 +22,8 @@ import { NotificationSettings } from 'src/common/entities/notification-settings.
       PushToken,
       NotificationSettings,
     ]),
+    // Account deletion confirmation email ([[Analyses/account-deletion-spec]])
+    MailModule,
   ],
   controllers: [UserController],
   providers: [UserService],
