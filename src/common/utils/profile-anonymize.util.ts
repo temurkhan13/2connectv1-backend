@@ -96,7 +96,13 @@ export function anonymizeForCrossUserView(summary: string): string {
   const parts: string[] = [];
 
   // Industry + Stage line
-  const industry = sections['Industry Focus'] || sections['Industry'];
+  // F/u 38 #10 ([[Apr-20]]): post Fix-#5/#6 persona prompts produce `## Focus` as the
+  // primary section header (replacing the older "Industry Focus" convention). Without
+  // this alias chain the parser lands in cleanRawText() which produces the
+  // "This professional Focus B2B..." stutter observed on [[People/Jerry-Lawler]]'s
+  // native-APK test. Adding Focus as a tail alias keeps the older personas
+  // (Industry Focus / Industry) unaffected while catching the new format.
+  const industry = sections['Industry Focus'] || sections['Industry'] || sections['Focus'];
   const stage = sections['Stage'];
   if (industry && industry !== 'Not specified') {
     let line = `Industry: ${industry}`;
