@@ -23,6 +23,7 @@ import {
   removeSummaryPII,
   parseMarkdownSections,
 } from 'src/common/utils/profile-anonymize.util';
+import { ChatService } from 'src/modules/chat/chat.service';
 
 // Stop-words excluded from name-stripping (Apr-17 fix).
 //
@@ -77,6 +78,7 @@ export class DiscoverService {
     @InjectModel(BrowseHistory) private browseHistoryModel: typeof BrowseHistory,
     @InjectModel(Match) private matchModel: typeof Match,
     private sequelize: Sequelize,
+    private readonly chatService: ChatService,
   ) {}
 
   /**
@@ -94,12 +96,18 @@ export class DiscoverService {
     );
 
     // Get user's existing matches and interests to exclude
-    const existingConnections = await this.getExistingConnections(userId);
+    // Apr-21: also exclude users who have a bidirectional block relationship
+    // with the current user — mirrors the `sendMessage` gate so blocked users
+    // don't reappear in the blocker's Discover feed.
+    const [existingConnections, blockedIds] = await Promise.all([
+      this.getExistingConnections(userId),
+      this.chatService.getBlockRelationshipIds(userId),
+    ]);
 
     // Build where clause
     const whereClause: any = {
       id: {
-        [Op.notIn]: [userId, ...existingConnections],
+        [Op.notIn]: [userId, ...existingConnections, ...blockedIds],
       },
       onboarding_status: 'completed',
       is_active: true,

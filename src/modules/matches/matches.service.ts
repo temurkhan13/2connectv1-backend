@@ -11,6 +11,7 @@ import {
   MatchingStatsResponse,
   MatchResultItem,
 } from 'src/integration/ai-service/types/responses.type';
+import { ChatService } from 'src/modules/chat/chat.service';
 
 export interface FormattedMatch {
   id: string;
@@ -29,7 +30,27 @@ export interface FormattedMatch {
 export class MatchesService {
   private readonly logger = new Logger(MatchesService.name);
 
-  constructor(private readonly aiServiceFacade: AIServiceFacade) {}
+  constructor(
+    private readonly aiServiceFacade: AIServiceFacade,
+    private readonly chatService: ChatService,
+  ) {}
+
+  /**
+   * Apr-21: filter out matches whose counterpart has a bidirectional block
+   * relationship with the current user. Mirrors the `sendMessage` gate +
+   * DashboardService / DiscoverService block filters so the experience is
+   * consistent across every match-returning endpoint.
+   */
+  private async filterBlocked(
+    userId: string,
+    matches: FormattedMatch[],
+  ): Promise<FormattedMatch[]> {
+    if (matches.length === 0) return matches;
+    const blockedIds = await this.chatService.getBlockRelationshipIds(userId);
+    if (blockedIds.length === 0) return matches;
+    const blockedSet = new Set(blockedIds);
+    return matches.filter(m => !blockedSet.has(m.userId));
+  }
 
   /**
    * Get all matches for a user
@@ -71,9 +92,12 @@ export class MatchesService {
     // Sort by match score descending
     const matches = Array.from(matchMap.values()).sort((a, b) => b.matchScore - a.matchScore);
 
+    // Apr-21: hide matches with blocked users
+    const filtered = await this.filterBlocked(userId, matches);
+
     return {
-      matches,
-      total: matches.length,
+      matches: filtered,
+      total: filtered.length,
     };
   }
 
@@ -87,7 +111,10 @@ export class MatchesService {
   ): Promise<FormattedMatch[]> {
     const response = await this.aiServiceFacade.getUserMatches(userId, similarityThreshold);
 
-    return (response.requirements_matches || []).map(m => this.formatMatch(m, 'requirements'));
+    const matches = (response.requirements_matches || []).map(m =>
+      this.formatMatch(m, 'requirements'),
+    );
+    return this.filterBlocked(userId, matches);
   }
 
   /**
@@ -100,7 +127,8 @@ export class MatchesService {
   ): Promise<FormattedMatch[]> {
     const response = await this.aiServiceFacade.getUserMatches(userId, similarityThreshold);
 
-    return (response.offerings_matches || []).map(m => this.formatMatch(m, 'offerings'));
+    const matches = (response.offerings_matches || []).map(m => this.formatMatch(m, 'offerings'));
+    return this.filterBlocked(userId, matches);
   }
 
   /**

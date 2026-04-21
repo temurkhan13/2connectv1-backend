@@ -14,6 +14,7 @@ import { UserEngagementScore } from 'src/common/entities/user-engagement-score.e
 import { MailModule } from 'src/modules/mail/mail.module';
 import { NotificationModule } from 'src/modules/notifications/notification.module';
 import { DailyAnalyticsService } from 'src/modules/daily-analytics/daily-analytics.service';
+import { ChatModule } from 'src/modules/chat/chat.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { DailyAnalyticsService } from 'src/modules/daily-analytics/daily-analyti
     ]),
     MailModule,
     NotificationModule,
+    ChatModule,
   ],
   controllers: [DashboardController],
   providers: [DashboardService, DailyAnalyticsService],

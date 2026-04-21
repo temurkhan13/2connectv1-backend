@@ -19,6 +19,7 @@ import { UserEngagementScore } from 'src/common/entities/user-engagement-score.e
 import { MailService } from 'src/modules/mail/mail.service';
 import { NotificationService } from 'src/modules/notifications/notification.service';
 import { DailyAnalyticsService } from 'src/modules/daily-analytics/daily-analytics.service';
+import { ChatService } from 'src/modules/chat/chat.service';
 import {
   MatchStatusEnum,
   DecideMatchEnum,
@@ -106,6 +107,7 @@ export class DashboardService {
     private readonly notificationService: NotificationService,
     private readonly dailyAnalyticsService: DailyAnalyticsService,
     private readonly aiService: AIServiceFacade,
+    private readonly chatService: ChatService,
     // Transaction manager
     private readonly sequelize: Sequelize,
   ) {}
@@ -135,10 +137,21 @@ export class DashboardService {
 
     const uid = this.sequelize.escape(userId);
 
+    // Apr-21: hide matches with users who have a bidirectional block
+    // relationship with the current user (mirrors `sendMessage` gate).
+    const blockedIds = await this.chatService.getBlockRelationshipIds(userId);
+    const blockFilter: WhereOptions[] = blockedIds.length
+      ? [
+          { user_a_id: { [Op.notIn]: blockedIds } },
+          { user_b_id: { [Op.notIn]: blockedIds } },
+        ]
+      : [];
+
     const rows = await this.matchModel.findAll({
       where: {
         [Op.and]: [
           { status: MatchStatusEnum.PENDING },
+          ...blockFilter,
           {
             [Op.or]: [
               // user is A
@@ -1294,9 +1307,19 @@ export class DashboardService {
       };
     }
 
+    // Apr-21: hide matches with users who have a bidirectional block
+    // relationship with the current user.
+    const blockedIds = await this.chatService.getBlockRelationshipIds(userId);
+    const blockFilter: WhereOptions[] = blockedIds.length
+      ? [
+          { user_a_id: { [Op.notIn]: blockedIds } },
+          { user_b_id: { [Op.notIn]: blockedIds } },
+        ]
+      : [];
+
     // 5) Query using a single OR across A/B branches
     const { rows, count } = await this.matchModel.findAndCountAll({
-      where: { [Op.or]: branches },
+      where: { [Op.and]: [{ [Op.or]: branches }, ...blockFilter] },
       include: [
         // Keep minimal joins to extract names/objectives for "other_user"
         { model: this.userModel, as: 'userA', attributes: [] },
@@ -1929,6 +1952,15 @@ export class DashboardService {
     });
 
     if (!match) {
+      throw new NotFoundException('Match not found or you are not a participant');
+    }
+
+    // Apr-21: hide match from the current user if there's a bidirectional
+    // block with the other participant. Same 404 response so the blocker
+    // cannot probe block state by ID scraping.
+    const otherUserId = match.user_a_id === userId ? match.user_b_id : match.user_a_id;
+    const blockedIds = await this.chatService.getBlockRelationshipIds(userId);
+    if (blockedIds.includes(otherUserId)) {
       throw new NotFoundException('Match not found or you are not a participant');
     }
 

@@ -7,6 +7,7 @@ import { UserSummaries } from 'src/common/entities/user-summaries.entity';
 import { ConnectionInterest } from 'src/common/entities/connection-interest.entity';
 import { BrowseHistory } from 'src/common/entities/browse-history.entity';
 import { Match } from 'src/common/entities/match.entity';
+import { ChatModule } from 'src/modules/chat/chat.module';
 
 /**
  * Discover Module
@@ -15,6 +16,7 @@ import { Match } from 'src/common/entities/match.entity';
 @Module({
   imports: [
     SequelizeModule.forFeature([User, UserSummaries, ConnectionInterest, BrowseHistory, Match]),
+    ChatModule,
   ],
   controllers: [DiscoverController],
   providers: [DiscoverService],

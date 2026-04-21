@@ -360,6 +360,38 @@ export class ChatService {
   }
 
   /**
+   * Get list of user IDs that have a block relationship with this user
+   * in EITHER direction (users this user blocked + users that blocked
+   * this user). Used by feed/list endpoints (Matches, Discover) to
+   * hide blocked users from the feed, mirroring the bidirectional
+   * semantics already enforced at `sendMessage` (line 188). Returns
+   * an empty array when no blocks exist so callers can skip the
+   * filter cheaply.
+   *
+   * Apr-21: Added to close the gap flagged in vault Apr-20 F/u 48
+   * `isBlocked` audit — BlockedUser was only consulted at message
+   * send time, so a blocker still saw the blocked user in Matches
+   * + Discover feeds. See [[Apr-21]] session log for the full scope.
+   */
+  async getBlockRelationshipIds(userId: string): Promise<string[]> {
+    const rows = await this.blockedUserModel.findAll({
+      where: {
+        [Op.or]: [
+          { blocker_id: userId },
+          { blocked_id: userId },
+        ],
+      },
+      attributes: ['blocker_id', 'blocked_id'],
+    });
+    const ids = new Set<string>();
+    for (const r of rows) {
+      if (r.blocker_id !== userId) ids.add(r.blocker_id);
+      if (r.blocked_id !== userId) ids.add(r.blocked_id);
+    }
+    return Array.from(ids);
+  }
+
+  /**
    * Report a user.
    *
    * Side effects:
