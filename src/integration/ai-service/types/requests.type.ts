@@ -167,8 +167,16 @@ export interface OnboardingChatRequest {
 /**
  * Complete Onboarding Request
  * POST /onboarding/complete
+ *
+ * `slot_overrides` (Apr-23 Fix #4): optional map of slot_name → edited value,
+ * sent when the user edits any field on the mobile/web review screen before
+ * tapping "Looks good". AI service applies these overrides onto the extracted
+ * slot_summary before persona generation so the corrected values flow through
+ * the full downstream pipeline (persona, embeddings, matching, explanations).
+ * See [[Apr-22]] Follow-up 12 for the Aaron Smith test that surfaced the gap.
  */
 export interface OnboardingCompleteRequest {
   session_id: string;
   user_id: string;
+  slot_overrides?: Record<string, string>;
 }

@@ -1683,15 +1683,29 @@ export class OnBoardingService {
    * @param sessionId - The session ID
    * @returns OnboardingCompleteResponse with profile_created status
    */
-  async completeConversationalOnboarding(userId: string, sessionId: string) {
+  async completeConversationalOnboarding(
+    userId: string,
+    sessionId: string,
+    slotOverrides?: Record<string, string>,
+  ) {
     this.logger.log(`----- COMPLETE CONVERSATIONAL ONBOARDING -----`);
-    this.logger.log({ user_id: userId, session_id: sessionId });
+    this.logger.log({
+      user_id: userId,
+      session_id: sessionId,
+      slot_overrides_count: slotOverrides ? Object.keys(slotOverrides).length : 0,
+    });
 
     try {
       // Call AI service to complete and create profile/persona
+      // Apr-23 Fix #4 ([[Apr-22]] F/u 12): optional slot_overrides pass through
+      // the user's review-screen edits. AI service merges them into the
+      // extracted slot_summary before persona generation.
       const response = await this.aiService.completeOnboarding({
         user_id: userId,
         session_id: sessionId,
+        ...(slotOverrides && Object.keys(slotOverrides).length > 0
+          ? { slot_overrides: slotOverrides }
+          : {}),
       });
 
       // BUG FIX: Only mark as COMPLETED if profile was actually created

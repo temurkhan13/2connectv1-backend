@@ -325,14 +325,22 @@ export class OnBoardingController {
   @Post('conversational/complete')
   @HttpCode(200)
   @UseGuards(AuthGuard('jwt'))
-  async completeConversationalOnboarding(@Request() req, @Body() body: { session_id: string }) {
+  async completeConversationalOnboarding(
+    @Request() req,
+    @Body() body: { session_id: string; slot_overrides?: Record<string, string> },
+  ) {
     const userId = req.user.id;
     if (!body.session_id) {
       throw new BadRequestException('Session ID is required');
     }
+    // Apr-23 Fix #4 ([[Apr-22]] F/u 12): optional slot_overrides carry user
+    // edits from the review screen through to persona generation. Pass-through
+    // only — no validation here; the AI service enforces that overrides are
+    // applied only to slots that already exist in the extracted set.
     const response = await this.onBoardingService.completeConversationalOnboarding(
       userId,
       body.session_id,
+      body.slot_overrides,
     );
     return response;
   }
