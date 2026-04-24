@@ -4,10 +4,10 @@
  * Purpose: Handle notification-related endpoints for saving FCM tokens and sending push messages.
  * Summary:
  *  - POST /notification/save-fcm-token: Save the current user's FCM token.
- *  - POST /notification/send-token: Send a push notification to a specific FCM token (to be deleted after testing, not to be included in prod).
+ *  - DELETE /notification/fcm-token: Clear all FCM tokens for the current user (logout).
  */
 
-import { Controller, Post, Body, UseGuards, Request, Res, HttpCode } from '@nestjs/common';
+import { Controller, Post, Delete, Body, UseGuards, Request, HttpCode } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBody, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { NotificationService } from 'src/modules/notifications/notification.service';
@@ -33,6 +33,20 @@ export class FcmController {
     const userId = req.user.id;
     const response = this.notificationService.saveFcmToken(userId, dto.token);
     return response;
+  }
+
+  @Delete('fcm-token') // DELETE /notification/fcm-token
+  @HttpCode(200)
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiResponse({
+    status: 200,
+    description: 'FCM tokens cleared',
+  })
+  async clearFcmToken(@Request() req) {
+    const userId = req.user.id;
+    const removed = await this.notificationService.clearFcmTokens(userId);
+    return { success: true, removed };
   }
 
   // @Post('send-token') // POST /notification/send-token

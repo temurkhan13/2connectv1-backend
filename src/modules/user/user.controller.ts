@@ -1,20 +1,19 @@
 /**
  * User Controller
- * Handles push tokens and notification settings for mobile app
+ * Handles notification settings and account deletion for mobile app
  *
  * Endpoints:
- * - POST /users/me/push-token - Register push notification token
- * - DELETE /users/me/push-token - Unregister push token (logout)
  * - GET /users/me/notification-settings - Get notification preferences
  * - PATCH /users/me/notification-settings - Update notification preferences
  * - DELETE /users/me - Initiate account deletion (Apr-20 F/u 45;
  *   satisfies Apple Guideline 5.1.1(v) + Google Play account-deletion policy).
  *   Soft-deletes immediately; hard-delete after 30-day grace via scheduler sweeper.
+ *
+ * FCM token register + unregister live on FcmController at /notification/*.
  */
 
 import {
   Controller,
-  Post,
   Delete,
   Get,
   Patch,
@@ -29,11 +28,6 @@ import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagg
 import { AuthGuard } from '@nestjs/passport';
 import { UserService } from 'src/modules/user/user.service';
 import {
-  RegisterPushTokenDto,
-  RegisterPushTokenResponseDto,
-  UnregisterPushTokenResponseDto,
-} from './dto/push-token.dto';
-import {
   NotificationSettingsDto,
   UpdateNotificationSettingsDto,
 } from './dto/notification-settings.dto';
@@ -45,47 +39,6 @@ import {
 @UseGuards(AuthGuard('jwt'))
 export class UserController {
   constructor(private readonly userService: UserService) {}
-
-  // ============================================================
-  // PUSH NOTIFICATIONS
-  // ============================================================
-
-  /**
-   * Register a push notification token for the authenticated user
-   * Called from mobile app on startup after getting Expo push token
-   */
-  @Post('me/push-token')
-  @HttpCode(200)
-  @ApiOperation({ summary: 'Register push notification token' })
-  @ApiResponse({
-    status: 200,
-    description: 'Token registered successfully',
-    type: RegisterPushTokenResponseDto,
-  })
-  async registerPushToken(
-    @Request() req,
-    @Body() dto: RegisterPushTokenDto,
-  ): Promise<RegisterPushTokenResponseDto> {
-    const userId = req.user.id;
-    return this.userService.registerPushToken(userId, dto);
-  }
-
-  /**
-   * Unregister push token(s) for the authenticated user
-   * Called from mobile app on logout
-   */
-  @Delete('me/push-token')
-  @HttpCode(200)
-  @ApiOperation({ summary: 'Unregister push notification token' })
-  @ApiResponse({
-    status: 200,
-    description: 'Token unregistered successfully',
-    type: UnregisterPushTokenResponseDto,
-  })
-  async unregisterPushToken(@Request() req): Promise<UnregisterPushTokenResponseDto> {
-    const userId = req.user.id;
-    return this.userService.unregisterPushToken(userId);
-  }
 
   // ============================================================
   // NOTIFICATION SETTINGS

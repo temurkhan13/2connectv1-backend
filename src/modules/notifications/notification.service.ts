@@ -101,6 +101,23 @@ export class NotificationService {
   }
 
   /**
+   * clearFcmTokens
+   * --------------
+   * Summary: Delete all FCM tokens for a user. Called on logout and on account
+   * deletion so a device no longer receives pushes for a signed-out/deleted user.
+   * Returns: number of rows deleted (0 or 1 since table has user_id as effective PK).
+   */
+  async clearFcmTokens(userId: string): Promise<number> {
+    this.logger.log(`----- CLEAR FCM TOKENS -----`);
+    this.logger.log({ user_id: userId });
+    const removed = await this.userFcmTokenModel.destroy({
+      where: { user_id: userId },
+    });
+    this.logger.log(`Removed ${removed} FCM token row(s) for user ${userId}`);
+    return removed;
+  }
+
+  /**
    * removeFcmTokens
    * ---------------
    * Summary: Remove specific tokens from a user's record, usually after permanent send failures.

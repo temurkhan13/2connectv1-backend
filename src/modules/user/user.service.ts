@@ -5,15 +5,10 @@
 
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
-import { PushToken } from 'src/common/entities/push-token.entity';
 import { NotificationSettings } from 'src/common/entities/notification-settings.entity';
 import { User } from 'src/common/entities/user.entity';
 import { MailService } from 'src/modules/mail/mail.service';
-import {
-  RegisterPushTokenDto,
-  RegisterPushTokenResponseDto,
-  UnregisterPushTokenResponseDto,
-} from './dto/push-token.dto';
+import { NotificationService } from 'src/modules/notifications/notification.service';
 import { NotificationSettingsDto, UpdateNotificationSettingsDto } from './dto/notification-settings.dto';
 
 /**
@@ -30,60 +25,11 @@ export class UserService {
   private readonly logger = new Logger(UserService.name);
 
   constructor(
-    @InjectModel(PushToken) private pushTokenModel: typeof PushToken,
     @InjectModel(NotificationSettings) private notificationSettingsModel: typeof NotificationSettings,
     @InjectModel(User) private userModel: typeof User,
     private readonly mailService: MailService,
+    private readonly notificationService: NotificationService,
   ) {}
-
-  /**
-   * Register a push notification token for the user
-   * Replaces existing token for the same device_id (user may reinstall app)
-   */
-  async registerPushToken(
-    userId: string,
-    dto: RegisterPushTokenDto,
-  ): Promise<RegisterPushTokenResponseDto> {
-    this.logger.log(`Registering push token for user ${userId}, device: ${dto.deviceId}`);
-
-    // Upsert: update if exists, insert if not
-    const [pushToken, created] = await this.pushTokenModel.upsert(
-      {
-        user_id: userId,
-        device_id: dto.deviceId,
-        token: dto.token,
-        platform: dto.platform,
-        updated_at: new Date(),
-      },
-      {
-        returning: true,
-      },
-    );
-
-    this.logger.log(
-      `Push token ${created ? 'created' : 'updated'} for user ${userId}: ${dto.token.substring(0, 30)}...`,
-    );
-
-    return {
-      success: true,
-      tokenId: pushToken.id,
-    };
-  }
-
-  /**
-   * Unregister all push tokens for the user (called on logout)
-   */
-  async unregisterPushToken(userId: string): Promise<UnregisterPushTokenResponseDto> {
-    this.logger.log(`Unregistering push tokens for user ${userId}`);
-
-    const count = await this.pushTokenModel.destroy({
-      where: { user_id: userId },
-    });
-
-    this.logger.log(`Deleted ${count} push token(s) for user ${userId}`);
-
-    return { success: true };
-  }
 
   /**
    * Get notification settings for the user
@@ -142,15 +88,6 @@ export class UserService {
 
     this.logger.log(`Updated notification settings for user ${userId}`);
     return this.mapSettingsToDto(settings);
-  }
-
-  /**
-   * Get all push tokens for a user (for sending notifications)
-   */
-  async getPushTokensForUser(userId: string): Promise<PushToken[]> {
-    return this.pushTokenModel.findAll({
-      where: { user_id: userId },
-    });
   }
 
   /**
@@ -219,13 +156,13 @@ export class UserService {
     await user.destroy();
     this.logger.log(`Soft-deleted user ${userId} (email=${email})`);
 
-    // 2) Unregister push tokens
+    // 2) Clear FCM tokens so the device stops receiving pushes for this account
     try {
-      await this.unregisterPushToken(userId);
+      await this.notificationService.clearFcmTokens(userId);
     } catch (e) {
       const err = e as Error;
       this.logger.warn(
-        `Push token unregister failed for ${userId}: ${err.message} — deletion proceeds`,
+        `FCM token clear failed for ${userId}: ${err.message} — deletion proceeds`,
       );
     }
 
