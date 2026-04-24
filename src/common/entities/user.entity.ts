@@ -179,6 +179,18 @@ export class User extends Model {
   })
   declare last_login_at: Date;
 
+  /**
+   * Map of tour name → ISO8601 timestamp of first completion. Used to gate
+   * first-time-user product tours per surface. Empty `{}` by default.
+   * Schema: { [tourName]: "2026-04-24T10:00:00.000Z" }
+   */
+  @Column({
+    type: DataType.JSONB,
+    allowNull: false,
+    defaultValue: {},
+  })
+  declare tours_seen: Record<string, string>;
+
   @HasMany(() => Match, {
     foreignKey: 'user_a_id',
     as: 'user_matches_a',

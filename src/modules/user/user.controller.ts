@@ -1,10 +1,12 @@
 /**
  * User Controller
- * Handles notification settings and account deletion for mobile app
+ * Handles notification settings, tours, and account deletion for mobile app
  *
  * Endpoints:
  * - GET /users/me/notification-settings - Get notification preferences
  * - PATCH /users/me/notification-settings - Update notification preferences
+ * - GET /users/me/tours - Read per-user product-tour completion map
+ * - POST /users/me/tours/:name/complete - Mark a tour as seen (idempotent)
  * - DELETE /users/me - Initiate account deletion (Apr-20 F/u 45;
  *   satisfies Apple Guideline 5.1.1(v) + Google Play account-deletion policy).
  *   Soft-deletes immediately; hard-delete after 30-day grace via scheduler sweeper.
@@ -16,7 +18,9 @@ import {
   Controller,
   Delete,
   Get,
+  Post,
   Patch,
+  Param,
   Body,
   UseInterceptors,
   ClassSerializerInterceptor,
@@ -24,13 +28,19 @@ import {
   Request,
   HttpCode,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { UserService } from 'src/modules/user/user.service';
 import {
   NotificationSettingsDto,
   UpdateNotificationSettingsDto,
 } from './dto/notification-settings.dto';
+import {
+  TourNameParamDto,
+  TOUR_NAMES,
+  ToursSeenResponseDto,
+  MarkTourCompleteResponseDto,
+} from './dto/tours.dto';
 
 @ApiTags('Users')
 @Controller('users')
@@ -76,6 +86,51 @@ export class UserController {
   ): Promise<NotificationSettingsDto> {
     const userId = req.user.id;
     return this.userService.updateNotificationSettings(userId, dto);
+  }
+
+  // ============================================================
+  // PRODUCT TOURS
+  // ============================================================
+
+  /**
+   * Read the per-user tour-completion map for the authenticated user.
+   * Empty `{}` for users who've never completed any tour.
+   */
+  @Get('me/tours')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Get product-tour completion map' })
+  @ApiResponse({
+    status: 200,
+    description: 'Tour completion map',
+    type: ToursSeenResponseDto,
+  })
+  async getTours(@Request() req): Promise<ToursSeenResponseDto> {
+    const userId = req.user.id;
+    const toursSeen = await this.userService.getToursSeen(userId);
+    return { tours_seen: toursSeen };
+  }
+
+  /**
+   * Mark a product tour as completed for the authenticated user.
+   * Idempotent: repeat calls preserve the first completion timestamp.
+   * `:name` must be one of the closed TOUR_NAMES set.
+   */
+  @Post('me/tours/:name/complete')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Mark a product tour as seen (idempotent)' })
+  @ApiParam({ name: 'name', enum: TOUR_NAMES })
+  @ApiResponse({
+    status: 200,
+    description: 'Tour completion recorded',
+    type: MarkTourCompleteResponseDto,
+  })
+  async markTourComplete(
+    @Request() req,
+    @Param() params: TourNameParamDto,
+  ): Promise<MarkTourCompleteResponseDto> {
+    const userId = req.user.id;
+    const completedAt = await this.userService.markTourComplete(userId, params.name);
+    return { success: true, completed_at: completedAt };
   }
 
   // ============================================================

@@ -91,6 +91,41 @@ export class UserService {
   }
 
   /**
+   * Get the per-user product-tour completion map.
+   * Returns `{}` for users that have never completed any tour.
+   */
+  async getToursSeen(userId: string): Promise<Record<string, string>> {
+    const user = await this.userModel.findByPk(userId, {
+      attributes: ['id', 'tours_seen'],
+    });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    return ((user as any).tours_seen as Record<string, string>) ?? {};
+  }
+
+  /**
+   * Mark a product tour as completed for the user. Idempotent: repeated calls
+   * keep the FIRST completion timestamp rather than overwriting, so analytics
+   * can reason about when the user actually saw the tour.
+   */
+  async markTourComplete(userId: string, tourName: string): Promise<string> {
+    const user = await this.userModel.findByPk(userId, {
+      attributes: ['id', 'tours_seen'],
+    });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    const existing = ((user as any).tours_seen as Record<string, string>) ?? {};
+    // Idempotent: preserve first completion time
+    const completedAt = existing[tourName] ?? new Date().toISOString();
+    const next = { ...existing, [tourName]: completedAt };
+    await user.update({ tours_seen: next });
+    this.logger.log(`Tour '${tourName}' marked complete for user ${userId} (completed_at=${completedAt})`);
+    return completedAt;
+  }
+
+  /**
    * Map database entity to DTO (snake_case to camelCase)
    */
   private mapSettingsToDto(settings: NotificationSettings): NotificationSettingsDto {
