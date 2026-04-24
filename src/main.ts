@@ -59,7 +59,12 @@ async function bootstrap() {
     const configService = app.get(ConfigService);
     const logger = app.get(LoggerService);
 
-    // CORS: allow cross-origin calls
+    // CORS: allow cross-origin calls.
+    // Apr-23: staging origins (2connectv1-frontend.vercel.app,
+    // twoconnectv1-ai.onrender.com, uat./dev. subdomains) removed per
+    // [[NEVER-DO]] "Staging environment" — staging is dead, do not route
+    // bookmarks through prod. Kept: production apex subdomains, marketing
+    // site, admin dashboard, CloudFront distributions, local dev.
     app.enableCors({
       origin: [
         // Apr-17 Phase 2c: production apex subdomains
@@ -69,19 +74,13 @@ async function bootstrap() {
         // Marketing site may initiate signup navigations
         'https://2connect.ai',
         'https://www.2connect.ai',
-        // Legacy / staging aliases (kept so pre-migration bookmarks keep working)
-        'https://uat.2connect.ai',
-        'https://ai.uat.2connect.ai',
-        'https://admin.uat.2connect.ai',
-        'https://dev.2connect.ai',
-        'https://ai.dev.2connect.ai',
-        'https://admin.dev.2connect.ai',
-        'https://2connectv1-frontend.vercel.app',
+        // Admin dashboard (separate product, still live)
         'https://2connect-admin-dashboard.vercel.app',
-        'https://twoconnectv1-ai.onrender.com',
+        // CloudFront distributions fronting production assets
         'https://d3b1d0x5eutlxh.cloudfront.net',
         'https://d3o48j1o5gm632.cloudfront.net',
         'https://d3sx9sl9x2tgj2.cloudfront.net',
+        // Local dev
         'http://localhost:5173',
         'http://localhost:5174',
         'http://localhost:5175',
