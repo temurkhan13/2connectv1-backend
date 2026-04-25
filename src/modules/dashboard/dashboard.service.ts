@@ -1341,6 +1341,16 @@ export class DashboardService {
         // this every card came back with reciprocal=undefined and the whole
         // list fell through to the flat render path, hiding the feature.
         'reciprocal',
+        // Apr-25 F/u 21: surface score + tier on the list response so the
+        // frontend MatchCard can display them in the collapsed state. Without
+        // this, score+tier were only fetched lazily by MatchExplanation when
+        // a user expanded "Why this match?" — meaning users decided
+        // Approve/Pass without seeing the most important metric. Both columns
+        // already exist on the matches table; adding to the SELECT is a
+        // non-breaking, additive change.
+        'match_tier',
+        'user_a_persona_compatibility_score',
+        'user_b_persona_compatibility_score',
 
         // other_user_id
         [
@@ -1420,6 +1430,14 @@ export class DashboardService {
           ? 'Feedback has been collected'
           : 'No Feedback was given';
 
+      // Apr-25 F/u 21: pick the perspective-correct compatibility score.
+      // matches table stores both user_a_persona_compatibility_score and
+      // user_b_persona_compatibility_score (they're identical for symmetric
+      // scoring, but defensively pick the user-specific one).
+      const compatibilityScore = isUserA
+        ? r.user_a_persona_compatibility_score
+        : r.user_b_persona_compatibility_score;
+
       return {
         id: r.id,
         match_date: r.match_date,
@@ -1432,6 +1450,13 @@ export class DashboardService {
 
         // Apr-18 Follow-up 26: reciprocity flag (null for pre-feature matches)
         reciprocal: r.reciprocal ?? null,
+
+        // Apr-25 F/u 21: score + tier surfaced on list response so the
+        // frontend MatchCard can display them without an extra fetch.
+        compatibility_score: typeof compatibilityScore === 'number'
+          ? compatibilityScore
+          : null,
+        match_tier: r.match_tier ?? null,
 
         other_user: {
           id: r.other_user_id,
