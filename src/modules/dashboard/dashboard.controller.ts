@@ -642,6 +642,21 @@ export class DashboardController {
   }
 
   /**
+   * GET /dashboard/admin/email-health?days=30
+   * -----------------------------------------
+   * Phase 4 A5: transactional-email observability. Aggregates emails_sent
+   * audit table over the last N days. Returns summary + per-template
+   * breakdown + last-20 failures. SES bounce/complaint counts are deferred
+   * (see vault Analyses/2026-04-28_admin-dashboard-phase4-design.md).
+   */
+  @Get('admin/email-health')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Email health rollup over last N days (Admin)' })
+  async getAdminEmailHealth(@Query('days') days?: string) {
+    return this.dashboardService.getAdminEmailHealth(Number(days) || 30);
+  }
+
+  /**
    * GET /dashboard/admin/wiring-audit
    * ---------------------------------
    * Summary:

@@ -16,6 +16,7 @@ import { IceBreaker } from 'src/common/entities/ice-breaker.entity';
 import { MatchFeedback } from 'src/common/entities/match-feedback.entity';
 import { UserPreferencesLearned } from 'src/common/entities/user-preferences-learned.entity';
 import { UserEngagementScore } from 'src/common/entities/user-engagement-score.entity';
+import { EmailSent } from 'src/common/entities/email-sent.entity';
 import { MailService } from 'src/modules/mail/mail.service';
 import { NotificationService } from 'src/modules/notifications/notification.service';
 import { DailyAnalyticsService } from 'src/modules/daily-analytics/daily-analytics.service';
@@ -101,6 +102,9 @@ export class DashboardService {
 
     @InjectModel(UserEngagementScore)
     private readonly userEngagementScoreModel: typeof UserEngagementScore,
+
+    @InjectModel(EmailSent)
+    private readonly emailSentModel: typeof EmailSent,
 
     //@InjectModel(AiConversation)
     private readonly mailService: MailService,
@@ -2722,5 +2726,104 @@ export class DashboardService {
         result: null,
       };
     }
+  }
+
+  /**
+   * getAdminEmailHealth
+   * --------------------
+   * Phase 4 A5: surfaces transactional-email observability for the admin
+   * dashboard "Email Health" tab. Aggregates the `emails_sent` audit table
+   * (added Apr-18 F/u 23 commit `1d4dc07`) over the last N days.
+   *
+   * Returns:
+   *   - summary: total sent, success rate, last send time
+   *   - by_template: per-log_context breakdown (verify-email, forgot-password,
+   *     weekly-match-summary, new-message, awaiting-response, ...)
+   *   - recent_failures: last 20 failed sends (success=false) with error_message
+   *
+   * Out of scope (deferred): SES bounce/complaint counts (would need either a
+   * new ses_events table or a CloudWatch GetMetricData IAM permission). See
+   * 2ConnectVault/Analyses/2026-04-28_admin-dashboard-phase4-design.md.
+   */
+  async getAdminEmailHealth(days = 30) {
+    this.logger.log(`----- GET ADMIN EMAIL HEALTH (days=${days}) -----`);
+
+    const periodDays = Math.max(1, Math.min(365, Number(days) || 30));
+
+    // 1. Top-level rollup
+    const [summaryRows] = await this.sequelize.query(
+      `
+      SELECT
+        COUNT(*) as total_sent,
+        SUM(CASE WHEN success THEN 1 ELSE 0 END) as success_count,
+        SUM(CASE WHEN NOT success THEN 1 ELSE 0 END) as failure_count,
+        MAX(sent_at) as last_send_at
+      FROM emails_sent
+      WHERE sent_at >= NOW() - INTERVAL '${periodDays} days'
+      `,
+    );
+    const summaryRow = (summaryRows as any[])[0] || {};
+    const totalSent = Number(summaryRow.total_sent) || 0;
+    const successCount = Number(summaryRow.success_count) || 0;
+    const failureCount = Number(summaryRow.failure_count) || 0;
+    const successRate = totalSent > 0 ? successCount / totalSent : 1.0;
+
+    // 2. Per-template breakdown
+    const [templateRows] = await this.sequelize.query(
+      `
+      SELECT
+        log_context,
+        COUNT(*) as total,
+        SUM(CASE WHEN success THEN 1 ELSE 0 END) as success_count,
+        SUM(CASE WHEN NOT success THEN 1 ELSE 0 END) as failure_count
+      FROM emails_sent
+      WHERE sent_at >= NOW() - INTERVAL '${periodDays} days'
+      GROUP BY log_context
+      ORDER BY total DESC
+      `,
+    );
+    const byTemplate = (templateRows as any[]).map((r) => ({
+      log_context: r.log_context,
+      total: Number(r.total),
+      success_count: Number(r.success_count),
+      failure_count: Number(r.failure_count),
+    }));
+
+    // 3. Recent failures (last 20)
+    const [failureRows] = await this.sequelize.query(
+      `
+      SELECT to_email, log_context, subject, error_message, sent_at
+      FROM emails_sent
+      WHERE success = false
+        AND sent_at >= NOW() - INTERVAL '${periodDays} days'
+      ORDER BY sent_at DESC
+      LIMIT 20
+      `,
+    );
+    const recentFailures = (failureRows as any[]).map((r) => ({
+      to_email: r.to_email,
+      log_context: r.log_context,
+      subject: r.subject,
+      error_message: r.error_message,
+      sent_at: r.sent_at,
+    }));
+
+    return {
+      code: 200,
+      message: 'success',
+      result: {
+        period_days: periodDays,
+        summary: {
+          total_sent: totalSent,
+          success_count: successCount,
+          failure_count: failureCount,
+          success_rate: Math.round(successRate * 10000) / 10000,
+          last_send_at: summaryRow.last_send_at || null,
+        },
+        by_template: byTemplate,
+        recent_failures: recentFailures,
+        notes: 'Bounce/complaint counts deferred to a future pass — see vault Analyses/2026-04-28_admin-dashboard-phase4-design.md',
+      },
+    };
   }
 }
