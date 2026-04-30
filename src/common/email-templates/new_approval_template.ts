@@ -1098,7 +1098,7 @@ export const newApprovalTemplate = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0
                                                     mso-text-raise: 2px;
                                                   "
                                                 >
-                                                  — The 2Connect Team
+                                                  — The 2Connect Professional Team
                                                 </p>
                                               </td>
                                             </tr>
@@ -1449,7 +1449,7 @@ export const newApprovalTemplate = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0
                                                     mso-text-raise: 2px;
                                                   "
                                                 >
-                                                  © 2026 2Connect. All rights
+                                                  © 2026 2Connect Professional. All rights
                                                   reserved.<br />
                                                 </p>
                                               </td>
@@ -1526,7 +1526,7 @@ export const newApprovalTemplate = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0
                                                     mso-text-raise: 2px;
                                                   "
                                                 >
-                                                  2Connect is committed to helping you build strong, valuable, and purposeful relationships.
+                                                  2Connect Professional is committed to helping you build strong, valuable, and purposeful relationships.
 Every feature we design aims to support your personal and professional growth.
 If you ever need assistance or want to share feedback, our team is always here for you.
                                                 </p>

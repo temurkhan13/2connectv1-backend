@@ -663,7 +663,7 @@ export const newMatchTemplate = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Tr
                                                   "
                                                 >
                                                   🎉 You've got {{match_count}} new
-                                                  {{match_label}} on 2Connect!
+                                                  {{match_label}} on 2Connect Professional!
                                                 </h1>
                                               </td>
                                             </tr>
@@ -1177,7 +1177,7 @@ export const newMatchTemplate = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Tr
                                                     mso-text-raise: 2px;
                                                   "
                                                 >
-                                                  — The 2Connect Team
+                                                  — The 2Connect Professional Team
                                                 </p>
                                               </td>
                                             </tr>
@@ -1528,7 +1528,7 @@ export const newMatchTemplate = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Tr
                                                     mso-text-raise: 2px;
                                                   "
                                                 >
-                                                  © 2026 2Connect. All rights
+                                                  © 2026 2Connect Professional. All rights
                                                   reserved.<br />
                                                   <a
                                                     href="{{unsubscribe_url}}"
@@ -1613,7 +1613,7 @@ export const newMatchTemplate = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Tr
                                                     mso-text-raise: 2px;
                                                   "
                                                 >
-                                                  2Connect is committed to helping you build strong, valuable, and purposeful relationships.
+                                                  2Connect Professional is committed to helping you build strong, valuable, and purposeful relationships.
 Every feature we design aims to support your personal and professional growth.
 If you ever need assistance or want to share feedback, our team is always here for you.
                                                 </p>

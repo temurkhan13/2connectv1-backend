@@ -40,7 +40,7 @@ export const VerifyEmailTemplate = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0
                     src="{{s3_public_url}}logo.png"
                     width="100"
                     height="15"
-                    alt="2Connect"
+                    alt="2Connect Professional"
                     style="display:block; border:0; height:auto; width:100%; max-width:100px; margin:0;"
                   />
                 </td>
@@ -73,7 +73,7 @@ export const VerifyEmailTemplate = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0
                     Hi {{name}},
                   </p>
                   <p style="margin:8px 0 0 0; font:500 14px Arial, Arial, sans-serif; color:#364151; line-height:20px;">
-                    Use the code below to confirm your email for 2Connect. This code will expire soon.
+                    Use the code below to confirm your email for 2Connect Professional. This code will expire soon.
                   </p>
                 </td>
               </tr>
@@ -166,7 +166,7 @@ export const VerifyEmailTemplate = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0
               <tr>
                 <td class="px" align="center" style="padding:16px 24px 24px 24px; border-top:1px solid #F4F2FD;">
                   <p style="margin:0; font:500 10px Arial, Arial, sans-serif; color:#4A5462; line-height:16px;">
-                    © 2026 2Connect. All rights reserved.
+                    © 2026 2Connect Professional. All rights reserved.
                     &nbsp;&middot;&nbsp;<a href="{{privacy_url}}" style="color:#267791; font-weight:600;">Privacy policy</a>
                     &nbsp;&middot;&nbsp;<a href="{{terms_url}}" style="color:#267791; font-weight:600;">Terms</a>
                   </p>
