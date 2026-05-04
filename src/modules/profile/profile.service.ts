@@ -1,5 +1,5 @@
 import { Sequelize } from 'sequelize-typescript';
-import { Transaction } from 'sequelize';
+import { Transaction, literal } from 'sequelize';
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Role } from 'src/common/entities/role.entity';
@@ -224,10 +224,24 @@ export class ProfileService {
     return this.sequelize.transaction(
       { isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED },
       async t => {
+        // May-04 fix: order approved-first, then version DESC, then created_at DESC.
+        // Mirrors the AI service's defensive read in postgresql.py.get_latest_user_summary
+        // (commit 020af91). After the May-04 webhook fix that stops backend from
+        // writing duplicate v2 status='draft' rows, only one row should exist per
+        // user (AI service's status='approved' direct write). But this ordering
+        // ensures correct behavior even if legacy v2 rows exist OR if the AI
+        // service writes a higher-version row in the future — approved always wins.
+        //
+        // Sequelize doesn't support CASE WHEN in `order` cleanly without raw
+        // literal helpers, so we use Sequelize.literal for the conditional.
         const summaryRecord: any = await this.userSummaryModel.findOne({
           where: { user_id: userId },
           attributes: ['id', 'summary', 'status', 'version', 'webhook'],
-          order: [['created_at', 'DESC']],
+          order: [
+            [literal(`CASE WHEN status = 'approved' THEN 0 ELSE 1 END`), 'ASC'],
+            ['version', 'DESC'],
+            ['created_at', 'DESC'],
+          ],
           raw: true,
           nest: true,
           transaction: t,

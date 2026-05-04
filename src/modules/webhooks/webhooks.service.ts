@@ -75,15 +75,33 @@ export class WebhooksService {
    * summaryReadyWebhook
    * -----------------------------------------------------------
    * Summary:
-   * - Persist a new version of user's AI summary, then notify user.
+   * - Notify user that AI summary is ready (real-time event only).
    *
-   * Steps:
-   * 1) Validate input (userId + summary).
-   * 2) TX: read latest version → create next version as "draft".
-   * 3) After commit: send FCM data-only message to the user.
+   * May-04 fix: this webhook NO LONGER writes to user_summaries. The AI
+   * service is the canonical writer for that table — it writes
+   * status='approved' rows directly via persona_processing.py:212 with
+   * the full persona content (## TL;DR section, persona archetype name
+   * as title, all sections in lockstep with notification_service's
+   * compose path).
+   *
+   * Previously this webhook created a SECOND row with status='draft' +
+   * JSON.stringify(summary) artifacts, using a re-compose path that
+   * differed from the AI service's direct write — different `name`
+   * field used (user's actual name vs persona archetype name) and
+   * MISSING the `tldr` field added on May-04 (commit ba007b1).
+   *
+   * Frontend's getSummary endpoint orders by created_at DESC, so the
+   * later-written v2 row was overriding v1 from the user's POV. After
+   * this fix only one row exists per user (the AI service's
+   * status='approved' write), so the user sees the canonical persona.
+   *
+   * The Socket.IO emit retained — frontend's `useSocketEvent('summary.ready')`
+   * handler ignores the payload and just calls refetch() to re-pull from
+   * the API. We send a lighter payload now (no summary text, no version,
+   * no summaryId — frontend doesn't need them).
    *
    * Flow:
-   * webhook → validate → TX(create summary) → commit → FCM notify → return true
+   * webhook → validate → emit Socket.IO 'summary.ready' → return true
    */
   async summaryReadyWebhook(body: SummaryReadyDto) {
     this.logger.log('++++++ SUMMARY READY WEBHOOK ++++++++++');
@@ -93,48 +111,15 @@ export class WebhooksService {
     const { user_id, summary } = body || ({} as SummaryReadyDto);
 
     if (!user_id || !summary) {
-      throw new BadRequestException('user_id, summary_id and summary are required');
+      throw new BadRequestException('user_id and summary are required');
     }
 
-    // 1–2) persist inside a transaction
-    const { version, summaryStr, summaryId } = await this.sequelize.transaction(
-      async (tx: Transaction) => {
-        const latest: any = await this.userSummaryModel.findOne({
-          where: { user_id },
-          attributes: ['version'],
-          order: [['version', 'DESC']],
-          raw: true,
-          transaction: tx,
-        });
-
-        const nextVersion = (latest?.version ?? 0) + 1;
-        const serialized = JSON.stringify(summary ?? {});
-
-        const summaryRecord = await this.userSummaryModel.create(
-          {
-            user_id,
-            summary: serialized,
-            status: 'draft',
-            version: nextVersion,
-            webhook: true, // UX-003 FIX: Set webhook flag to prevent blank AI summary
-          },
-          { transaction: tx },
-        );
-
-        const summaryId = (summaryRecord as any)?.id;
-        this.logger.log({ summary_id: summaryId });
-
-        return { version: nextVersion, summaryStr: serialized, summaryId };
-      },
-    );
-    //const ouser_id = 987
-    // 3) notify after successful commit (Socket.IO)
+    // May-04: notification-only — no DB write. AI service has already
+    // written status='approved' to user_summaries with the canonical
+    // persona content via persona_processing.py:212.
     this.realtimeEvents.emitToUser(String(user_id), 'summary.ready', {
       type: 'SUMMARY_READY',
       userId: String(user_id),
-      version: String(version),
-      summaryId: String(summaryId),
-      summary: summaryStr, // you can remove this if payload is too big
     });
 
     return { success: true };
